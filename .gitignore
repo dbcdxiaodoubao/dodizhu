@@ -1,6 +1,6 @@
 .idea/
 backend/target/
 cpp/build/
-logs/*.log
-!logs/.gitkeep
+logs/
+docs/
 多人联机斗地主游戏后端项目需求文档.md
