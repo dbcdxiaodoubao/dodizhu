@@ -20,6 +20,7 @@ enum MessageId {
   C2S_RECONNECT = 14;
   S2C_RECONNECT_SYNC = 15;
   S2C_SETTLE_RESULT = 16;
+  S2C_PLAY_BROADCAST = 17;
 }
 
 message C2SLogin {
@@ -60,6 +61,8 @@ message S2CCallLandlordRet {
   uint32 current_seat = 2;
   bool game_started = 3;
   uint32 landlord_seat = 4;
+  uint32 actor_seat = 5;
+  bool called = 6;
 }
 
 message C2SPlayCards {
@@ -100,4 +103,11 @@ message S2CReconnectSync {
 message S2CSettleResult {
   bool win = 1;
   int32 coin_change = 2;
+}
+
+message S2CPlayBroadcast {
+  uint32 seat = 1;
+  repeated uint32 cards = 2;
+  bool passed = 3;
+  uint32 current_seat = 4;
 }

@@ -10,6 +10,7 @@
     input, button { font: inherit; padding: 10px; border-radius: 8px; border: 0; }
     input { width: 220px; }
     button { background: #d9b55a; color: #1c190c; cursor: pointer; margin: 4px; }
+    #hand button.selected { background: #73c98d; transform: translateY(-8px); }
     #status { font-weight: 700; }
     pre { min-height: 180px; overflow: auto; background: #09150f; padding: 16px; border-radius: 8px; }
   </style>
@@ -18,6 +19,7 @@
   <main>
     <h1>斗地主联机演示</h1>
     <p id="status">未连接</p>
+    <p id="game-state">阶段：等待连接</p>
     <input id="player-id" value="web-player" placeholder="玩家 ID">
     <div>
       <button id="connect">连接 WebSocket</button>
@@ -25,18 +27,24 @@
       <button id="heartbeat">心跳</button>
       <button id="match">快速匹配</button>
       <button id="call">叫地主</button>
-      <button id="pass">不叫地主</button>
+      <button id="decline">不叫地主</button>
+      <button id="play">出牌</button>
+      <button id="pass">过牌</button>
       <button id="reconnect">重连同步</button>
     </div>
-    <p>手牌：<span id="hand">等待发牌</span></p>
+    <p>手牌：</p><div id="hand">等待发牌</div>
     <pre id="log"></pre>
   </main>
   <script>
     const status = document.querySelector('#status');
+    const gameState = document.querySelector('#game-state');
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
     const hand = document.querySelector('#hand');
     let socket;
+    let handCodes = [];
+    let playerSeat = null;
+    const selectedCards = new Set();
 
     function write(message) {
       log.textContent += `${message}\n`;
@@ -92,6 +100,7 @@
 
     function showDeal(bytes, cardField = 1) {
       const cards = [];
+      let seat = null;
       let index = 6;
       while (index < bytes.length) {
         const [tag, afterTag] = readVarint(bytes, index);
@@ -102,8 +111,84 @@
         const [value, afterValue] = readVarint(bytes, index);
         index = afterValue;
         if (field === cardField) cards.push(value);
+        if (cardField === 1 && field === 2) seat = value;
       }
-      hand.textContent = cards.map(cardName).join(' ');
+      if (seat !== null) playerSeat = seat;
+      handCodes = cards;
+      selectedCards.clear();
+      renderHand();
+      if (cardField === 1) gameState.textContent = `阶段：叫地主，当前座位：${readField(bytes, 3)}`;
+    }
+
+    function readField(bytes, wantedField) {
+      let index = 6;
+      while (index < bytes.length) {
+        const [tag, afterTag] = readVarint(bytes, index);
+        index = afterTag;
+        if ((tag & 7) !== 0) return null;
+        const [value, afterValue] = readVarint(bytes, index);
+        index = afterValue;
+        if ((tag >> 3) === wantedField) return value;
+      }
+      return null;
+    }
+
+    function applyPlayBroadcast(bytes) {
+      let index = 6;
+      let seat = null;
+      let passed = false;
+      const cards = [];
+      while (index < bytes.length) {
+        const [tag, afterTag] = readVarint(bytes, index);
+        index = afterTag;
+        const field = tag >> 3;
+        const wireType = tag & 7;
+        if (wireType !== 0) break;
+        const [value, afterValue] = readVarint(bytes, index);
+        index = afterValue;
+        if (field === 1) seat = value;
+        if (field === 2) cards.push(value);
+        if (field === 3) passed = value !== 0;
+      }
+      if (seat === playerSeat && !passed) {
+        handCodes = handCodes.filter(code => !cards.includes(code));
+        selectedCards.clear();
+        renderHand();
+      }
+      gameState.textContent = passed
+        ? `座位 ${seat} 过牌，当前座位：${readField(bytes, 4)}`
+        : `座位 ${seat} 出牌，当前座位：${readField(bytes, 4)}`;
+    }
+
+    function applyCallLandlord(bytes) {
+      const actor = readField(bytes, 5);
+      const called = readField(bytes, 6) !== 0;
+      const started = readField(bytes, 3) !== 0;
+      const landlord = readField(bytes, 4);
+      gameState.textContent = started
+        ? `地主座位：${landlord}，开始出牌`
+        : `座位 ${actor} ${called ? '叫地主' : '不叫地主'}，当前座位：${readField(bytes, 2)}`;
+    }
+
+    function applySettlement(bytes) {
+      const win = readField(bytes, 1) !== 0;
+      const change = readField(bytes, 2) || 0;
+      gameState.textContent = `对局结束：${win ? '胜利' : '失败'}，金币变化：${change}`;
+    }
+
+    function renderHand() {
+      hand.textContent = '';
+      for (const code of handCodes) {
+        const button = document.createElement('button');
+        button.textContent = cardName(code);
+        button.classList.toggle('selected', selectedCards.has(code));
+        button.onclick = () => {
+          if (selectedCards.has(code)) selectedCards.delete(code);
+          else selectedCards.add(code);
+          renderHand();
+        };
+        hand.appendChild(button);
+      }
     }
 
     document.querySelector('#connect').onclick = () => {
@@ -125,10 +210,14 @@
           12: 'S2C_PASS_RET',
           13: 'S2C_DEAL_CARDS',
           15: 'S2C_RECONNECT_SYNC',
-          16: 'S2C_SETTLE_RESULT'
+          16: 'S2C_SETTLE_RESULT',
+          17: 'S2C_PLAY_BROADCAST'
         };
         if (messageId === 13) showDeal(bytes);
         if (messageId === 15) showDeal(bytes, 6);
+        if (messageId === 17) applyPlayBroadcast(bytes);
+        if (messageId === 8) applyCallLandlord(bytes);
+        if (messageId === 16) applySettlement(bytes);
         write(`收到 ${names[messageId] || messageId}: ${[...bytes].join(',')}`);
       };
     };
@@ -140,7 +229,15 @@
     document.querySelector('#heartbeat').onclick = () => send(3);
     document.querySelector('#match').onclick = () => send(5);
     document.querySelector('#call').onclick = () => send(7, [0x08, 0x01]);
-    document.querySelector('#pass').onclick = () => send(7, [0x08, 0x00]);
+    document.querySelector('#decline').onclick = () => send(7, [0x08, 0x00]);
+    document.querySelector('#play').onclick = () => {
+      const body = [];
+      for (const card of selectedCards) body.push(0x08, ...varint(card));
+      send(9, body);
+      selectedCards.clear();
+      renderHand();
+    };
+    document.querySelector('#pass').onclick = () => send(11);
     document.querySelector('#reconnect').onclick = () => send(14);
   </script>
 </body>

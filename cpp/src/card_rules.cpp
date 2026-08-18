@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 
 namespace game {
 namespace {
@@ -25,6 +26,26 @@ bool consecutive(const std::map<std::uint8_t, int>& counts) {
         ++next;
     }
     return true;
+}
+
+std::optional<Rank> airplane_main_rank(const std::map<std::uint8_t, int>& counts,
+                                       std::size_t triple_count) {
+    const auto first_rank = rank_value(Rank::Three);
+    const auto last_rank = rank_value(Rank::Ace);
+    for (auto start = first_rank; start + triple_count - 1 <= last_rank; ++start) {
+        bool valid = true;
+        for (std::size_t offset = 0; offset < triple_count; ++offset) {
+            const auto entry = counts.find(start + offset);
+            if (entry == counts.end() || entry->second != 3) {
+                valid = false;
+                break;
+            }
+        }
+        if (valid) {
+            return static_cast<Rank>(start + triple_count - 1);
+        }
+    }
+    return std::nullopt;
 }
 
 }  // namespace
@@ -87,6 +108,44 @@ Play CardRules::analyze(const std::vector<Card>& cards) {
         std::all_of(counts.begin(), counts.end(),
             [](const auto& entry) { return entry.second == 3; })) {
         return {CardPattern::Airplane, highest_rank, cards.size()};
+    }
+
+    if (cards.size() >= 8 && cards.size() % 4 == 0) {
+        const auto triple_count = cards.size() / 4;
+        const auto main_rank = airplane_main_rank(counts, triple_count);
+        if (main_rank) {
+            auto remaining = counts;
+            for (auto rank = static_cast<std::uint8_t>(*main_rank) - triple_count + 1;
+                 rank <= static_cast<std::uint8_t>(*main_rank);
+                 ++rank) {
+                remaining.erase(rank);
+            }
+            std::size_t remaining_cards = 0;
+            for (const auto& [_, count] : remaining) {
+                remaining_cards += count;
+            }
+            if (remaining_cards == triple_count) {
+                return {CardPattern::AirplaneWithSingles, *main_rank, cards.size()};
+            }
+        }
+    }
+
+    if (cards.size() >= 10 && cards.size() % 5 == 0) {
+        const auto triple_count = cards.size() / 5;
+        const auto main_rank = airplane_main_rank(counts, triple_count);
+        if (main_rank) {
+            auto remaining = counts;
+            for (auto rank = static_cast<std::uint8_t>(*main_rank) - triple_count + 1;
+                 rank <= static_cast<std::uint8_t>(*main_rank);
+                 ++rank) {
+                remaining.erase(rank);
+            }
+            if (remaining.size() == triple_count &&
+                std::all_of(remaining.begin(), remaining.end(),
+                    [](const auto& entry) { return entry.second == 2; })) {
+                return {CardPattern::AirplaneWithPairs, *main_rank, cards.size()};
+            }
+        }
     }
 
     return {};

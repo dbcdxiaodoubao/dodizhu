@@ -110,6 +110,7 @@ void TcpSession::handle_packet() {
                 login_ret.set_message(backend_login.success ? "login accepted" : backend_login.message);
                 if (backend_login.success) {
                     self->player_id_ = backend_login.player_id;
+                    self->room_manager_->mark_online(self->player_id_);
                     const auto weak_session = std::weak_ptr<TcpSession>(self);
                     self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
                         if (const auto session = weak_session.lock()) {
@@ -189,10 +190,18 @@ void TcpSession::handle_packet() {
         call_ret.set_accepted(result->accepted);
         call_ret.set_current_seat(result->current_seat);
         call_ret.set_game_started(result->game_started);
+        call_ret.set_actor_seat(result->actor_seat);
+        call_ret.set_called(result->called);
         if (result->landlord_seat) {
             call_ret.set_landlord_seat(*result->landlord_seat);
         }
-        send_packet(doudizhu::S2C_CALL_LANDLORD_RET, call_ret.SerializeAsString());
+        if (result->accepted) {
+            for (const auto& player : result->player_ids) {
+                notifier_->send(player, doudizhu::S2C_CALL_LANDLORD_RET, call_ret.SerializeAsString());
+            }
+        } else {
+            send_packet(doudizhu::S2C_CALL_LANDLORD_RET, call_ret.SerializeAsString());
+        }
         break;
     }
     case doudizhu::C2S_PLAY_CARDS: {
@@ -224,6 +233,17 @@ void TcpSession::handle_packet() {
         play_ret.set_current_seat(result->current_seat);
         play_ret.set_game_over(result->game_over);
         send_packet(doudizhu::S2C_PLAY_CARDS_RET, play_ret.SerializeAsString());
+        if (result->accepted) {
+            doudizhu::S2CPlayBroadcast broadcast;
+            broadcast.set_seat(result->actor_seat);
+            broadcast.set_current_seat(result->current_seat);
+            for (const auto& card : cards) {
+                broadcast.add_cards(game::CardCodec::encode(card));
+            }
+            for (const auto& player : result->player_ids) {
+                notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+            }
+        }
         if (result->game_over) {
             for (const auto& settlement : result->settlements) {
                 doudizhu::S2CSettleResult settle_ret;
@@ -258,6 +278,15 @@ void TcpSession::handle_packet() {
         pass_ret.set_current_seat(result->current_seat);
         pass_ret.set_game_over(result->game_over);
         send_packet(doudizhu::S2C_PASS_RET, pass_ret.SerializeAsString());
+        if (result->accepted) {
+            doudizhu::S2CPlayBroadcast broadcast;
+            broadcast.set_seat(result->actor_seat);
+            broadcast.set_passed(true);
+            broadcast.set_current_seat(result->current_seat);
+            for (const auto& player : result->player_ids) {
+                notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+            }
+        }
         break;
     }
     case doudizhu::C2S_RECONNECT: {
@@ -345,6 +374,9 @@ void TcpSession::write_next() {
 void TcpSession::close() {
     boost::system::error_code ignored;
     heartbeat_timer_.cancel();
+    if (!player_id_.empty()) {
+        room_manager_->mark_offline(player_id_, std::chrono::steady_clock::now());
+    }
     socket_.shutdown(tcp::socket::shutdown_both, ignored);
     socket_.close(ignored);
 }
@@ -356,6 +388,7 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
                      std::shared_ptr<PlayerNotifier> notifier,
                      boost::asio::thread_pool& backend_pool)
     : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
+      cleanup_timer_(acceptor_.get_executor()),
       room_manager_(std::move(room_manager)),
       backend_client_(std::move(backend_client)),
       notifier_(std::move(notifier)),
@@ -364,6 +397,7 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
 
 void TcpServer::start() {
     accept_next();
+    schedule_cleanup();
 }
 
 void TcpServer::accept_next() {
@@ -375,6 +409,32 @@ void TcpServer::accept_next() {
 
             accept_next();
         });
+}
+
+void TcpServer::schedule_cleanup() {
+    cleanup_timer_.expires_after(std::chrono::minutes(1));
+    cleanup_timer_.async_wait([this](const boost::system::error_code& error) {
+        if (error) {
+            return;
+        }
+
+        for (const auto& expired_room : room_manager_->cleanup_expired(std::chrono::steady_clock::now())) {
+            for (const auto& settlement : expired_room.settlements) {
+                doudizhu::S2CSettleResult settle_ret;
+                settle_ret.set_win(settlement.result == "WIN");
+                settle_ret.set_coin_change(settlement.coin_change);
+                notifier_->send(settlement.player_id,
+                                doudizhu::S2C_SETTLE_RESULT,
+                                settle_ret.SerializeAsString());
+                auto backend_client = backend_client_;
+                boost::asio::post(backend_pool_, [backend_client, settlement] {
+                    backend_client->settle(settlement.player_id, settlement.coin_change, settlement.result, 0);
+                });
+            }
+        }
+
+        schedule_cleanup();
+    });
 }
 
 }  // namespace gateway

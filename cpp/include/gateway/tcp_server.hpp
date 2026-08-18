@@ -65,8 +65,10 @@ public:
 
 private:
     void accept_next();
+    void schedule_cleanup();
 
     tcp::acceptor acceptor_;
+    boost::asio::steady_timer cleanup_timer_;
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;
     std::shared_ptr<PlayerNotifier> notifier_;

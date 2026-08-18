@@ -17,6 +17,8 @@ enum class CardPattern : std::uint8_t {
     Straight,
     ConsecutivePairs,
     Airplane,
+    AirplaneWithSingles,
+    AirplaneWithPairs,
     Bomb,
     Rocket,
 };

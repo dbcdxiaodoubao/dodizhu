@@ -71,6 +71,9 @@ std::optional<CallLandlordResult> RoomManager::call_landlord(
         room.round->current_seat(),
         room.round->phase() == game::GamePhase::PlayCards,
         room.round->landlord_seat(),
+        seat,
+        call,
+        {room.player_ids[0], room.player_ids[1], room.player_ids[2]},
     };
 }
 
@@ -94,6 +97,8 @@ std::optional<PlayCardsResult> RoomManager::play_cards(
         room.round->current_seat(),
         room.round->phase() == game::GamePhase::Settled,
         {},
+        seat,
+        {room.player_ids[0], room.player_ids[1], room.player_ids[2]},
     };
 
     if (result.game_over && accepted) {
@@ -135,6 +140,8 @@ std::optional<PlayCardsResult> RoomManager::pass(const std::string& player_id) {
         room.round->current_seat(),
         room.round->phase() == game::GamePhase::Settled,
         {},
+        seat,
+        {room.player_ids[0], room.player_ids[1], room.player_ids[2]},
     };
 }
 
@@ -163,6 +170,75 @@ std::optional<ReconnectInfo> RoomManager::reconnect_info(const std::string& play
         room->second.round->landlord_seat(),
         room->second.round->hand(seat),
     };
+}
+
+void RoomManager::mark_online(const std::string& player_id) {
+    offline_since_.erase(player_id);
+}
+
+void RoomManager::mark_offline(const std::string& player_id,
+                               std::chrono::steady_clock::time_point now) {
+    if (player_rooms_.find(player_id) != player_rooms_.end()) {
+        offline_since_.emplace(player_id, now);
+    }
+}
+
+std::vector<ExpiredRoom> RoomManager::cleanup_expired(std::chrono::steady_clock::time_point now) {
+    std::vector<std::string> expired_players;
+    for (const auto& [player_id, offline_since] : offline_since_) {
+        if (now - offline_since >= std::chrono::minutes(5)) {
+            expired_players.push_back(player_id);
+        }
+    }
+
+    std::vector<ExpiredRoom> expired_rooms;
+    for (const auto& player_id : expired_players) {
+        const auto player_room = player_rooms_.find(player_id);
+        if (player_room == player_rooms_.end()) {
+            offline_since_.erase(player_id);
+            continue;
+        }
+
+        const auto room = rooms_.find(player_room->second);
+        if (room == rooms_.end()) {
+            player_rooms_.erase(player_room);
+            offline_since_.erase(player_id);
+            continue;
+        }
+
+        ExpiredRoom expired_room;
+        if (room->second.round && room->second.round->landlord_seat()) {
+            const auto expired = std::find(
+                room->second.player_ids.begin(), room->second.player_ids.end(), player_id);
+            const auto expired_seat = static_cast<std::uint8_t>(
+                std::distance(room->second.player_ids.begin(), expired));
+            const auto landlord = *room->second.round->landlord_seat();
+            const auto landlord_won = expired_seat != landlord;
+            for (std::uint8_t seat = 0; seat < room->second.player_ids.size(); ++seat) {
+                const auto is_landlord = seat == landlord;
+                const auto won = is_landlord == landlord_won;
+                expired_room.settlements.push_back(PlayCardsResult::SettlementEntry{
+                    room->second.player_ids[seat],
+                    is_landlord ? (won ? 200 : -200) : (won ? 100 : -100),
+                    won ? "WIN" : "LOSE",
+                });
+            }
+        }
+
+        for (const auto& room_player : room->second.player_ids) {
+            player_rooms_.erase(room_player);
+            offline_since_.erase(room_player);
+        }
+        if (waiting_room_id_ && *waiting_room_id_ == room->second.id) {
+            waiting_room_id_.reset();
+        }
+        rooms_.erase(room);
+        if (!expired_room.settlements.empty()) {
+            expired_rooms.push_back(std::move(expired_room));
+        }
+    }
+
+    return expired_rooms;
 }
 
 }  // namespace gateway

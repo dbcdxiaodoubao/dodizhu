@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cassert>
 
 #include "gateway/room_manager.hpp"
@@ -33,4 +34,10 @@ int main() {
     assert(call_third.has_value());
     assert(call_third->game_started);
     assert(call_third->landlord_seat == 0);
+
+    const auto now = std::chrono::steady_clock::time_point{};
+    rooms.mark_offline("player-a", now);
+    const auto expired = rooms.cleanup_expired(now + std::chrono::minutes(6));
+    assert(expired.size() == 1);
+    assert(expired[0].settlements.size() == 3);
 }

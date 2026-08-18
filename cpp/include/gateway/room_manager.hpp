@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -28,6 +29,9 @@ struct CallLandlordResult {
     std::uint8_t current_seat;
     bool game_started;
     std::optional<std::uint8_t> landlord_seat;
+    std::uint8_t actor_seat;
+    bool called;
+    std::array<std::string, 3> player_ids;
 };
 
 struct PlayCardsResult {
@@ -40,6 +44,8 @@ struct PlayCardsResult {
         std::string result;
     };
     std::vector<SettlementEntry> settlements;
+    std::uint8_t actor_seat;
+    std::array<std::string, 3> player_ids;
 };
 
 struct ReconnectInfo {
@@ -51,6 +57,10 @@ struct ReconnectInfo {
     std::vector<game::Card> hand;
 };
 
+struct ExpiredRoom {
+    std::vector<PlayCardsResult::SettlementEntry> settlements;
+};
+
 class RoomManager final {
 public:
     MatchResult match(const std::string& player_id);
@@ -59,6 +69,9 @@ public:
         const std::string& player_id, const std::vector<game::Card>& cards);
     std::optional<PlayCardsResult> pass(const std::string& player_id);
     std::optional<ReconnectInfo> reconnect_info(const std::string& player_id) const;
+    void mark_online(const std::string& player_id);
+    void mark_offline(const std::string& player_id, std::chrono::steady_clock::time_point now);
+    std::vector<ExpiredRoom> cleanup_expired(std::chrono::steady_clock::time_point now);
 
 private:
     struct Room {
@@ -71,6 +84,7 @@ private:
     std::optional<std::uint64_t> waiting_room_id_;
     std::unordered_map<std::uint64_t, Room> rooms_;
     std::unordered_map<std::string, std::uint64_t> player_rooms_;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> offline_since_;
     std::mt19937 random_{std::random_device{}()};
 };
 

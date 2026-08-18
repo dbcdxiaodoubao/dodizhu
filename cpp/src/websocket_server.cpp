@@ -112,6 +112,7 @@ private:
                     response.set_message(result.success ? "login accepted" : result.message);
                     if (result.success) {
                         self->player_id_ = result.player_id;
+                        self->room_manager_->mark_online(self->player_id_);
                         const auto weak_session = std::weak_ptr<WebSocketSession>(self);
                         self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
                             if (const auto session = weak_session.lock()) {
@@ -187,10 +188,18 @@ private:
             response.set_accepted(result->accepted);
             response.set_current_seat(result->current_seat);
             response.set_game_started(result->game_started);
+            response.set_actor_seat(result->actor_seat);
+            response.set_called(result->called);
             if (result->landlord_seat) {
                 response.set_landlord_seat(*result->landlord_seat);
             }
-            send_packet(doudizhu::S2C_CALL_LANDLORD_RET, response.SerializeAsString());
+            if (result->accepted) {
+                for (const auto& player : result->player_ids) {
+                    notifier_->send(player, doudizhu::S2C_CALL_LANDLORD_RET, response.SerializeAsString());
+                }
+            } else {
+                send_packet(doudizhu::S2C_CALL_LANDLORD_RET, response.SerializeAsString());
+            }
             return;
         }
         case doudizhu::C2S_PLAY_CARDS: {
@@ -219,6 +228,17 @@ private:
             response.set_current_seat(result->current_seat);
             response.set_game_over(result->game_over);
             send_packet(doudizhu::S2C_PLAY_CARDS_RET, response.SerializeAsString());
+            if (result->accepted) {
+                doudizhu::S2CPlayBroadcast broadcast;
+                broadcast.set_seat(result->actor_seat);
+                broadcast.set_current_seat(result->current_seat);
+                for (const auto& card : cards) {
+                    broadcast.add_cards(game::CardCodec::encode(card));
+                }
+                for (const auto& player : result->player_ids) {
+                    notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+                }
+            }
             if (result->game_over) {
                 for (const auto& settlement : result->settlements) {
                     doudizhu::S2CSettleResult settle_ret;
@@ -251,6 +271,15 @@ private:
             response.set_current_seat(result->current_seat);
             response.set_game_over(result->game_over);
             send_packet(doudizhu::S2C_PASS_RET, response.SerializeAsString());
+            if (result->accepted) {
+                doudizhu::S2CPlayBroadcast broadcast;
+                broadcast.set_seat(result->actor_seat);
+                broadcast.set_passed(true);
+                broadcast.set_current_seat(result->current_seat);
+                for (const auto& player : result->player_ids) {
+                    notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+                }
+            }
             return;
         }
         case doudizhu::C2S_RECONNECT: {
@@ -333,6 +362,9 @@ private:
 
     void close() {
         heartbeat_timer_.cancel();
+        if (!player_id_.empty()) {
+            room_manager_->mark_offline(player_id_, std::chrono::steady_clock::now());
+        }
         boost::system::error_code ignored;
         stream_.next_layer().shutdown(tcp::socket::shutdown_both, ignored);
         stream_.next_layer().close(ignored);

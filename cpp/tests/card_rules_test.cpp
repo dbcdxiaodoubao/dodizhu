@@ -13,6 +13,17 @@ int main() {
     assert(game::CardRules::analyze({Card{Rank::Five, 0}, Card{Rank::Five, 1}, Card{Rank::Five, 2}}).pattern == CardPattern::Triple);
     assert(game::CardRules::analyze({Card{Rank::Six, 0}, Card{Rank::Six, 1}, Card{Rank::Six, 2}, Card{Rank::Seven, 0}}).pattern == CardPattern::TripleWithSingle);
     assert(game::CardRules::analyze({Card{Rank::Three, 0}, Card{Rank::Four, 0}, Card{Rank::Five, 0}, Card{Rank::Six, 0}, Card{Rank::Seven, 0}}).pattern == CardPattern::Straight);
+    assert(game::CardRules::analyze({
+        Card{Rank::Three, 0}, Card{Rank::Three, 1}, Card{Rank::Three, 2},
+        Card{Rank::Four, 0}, Card{Rank::Four, 1}, Card{Rank::Four, 2},
+        Card{Rank::Five, 0}, Card{Rank::Six, 0}
+    }).pattern == CardPattern::AirplaneWithSingles);
+    assert(game::CardRules::analyze({
+        Card{Rank::Three, 0}, Card{Rank::Three, 1}, Card{Rank::Three, 2},
+        Card{Rank::Four, 0}, Card{Rank::Four, 1}, Card{Rank::Four, 2},
+        Card{Rank::Five, 0}, Card{Rank::Five, 1},
+        Card{Rank::Six, 0}, Card{Rank::Six, 1}
+    }).pattern == CardPattern::AirplaneWithPairs);
     assert(game::CardRules::analyze({Card{Rank::Eight, 0}, Card{Rank::Eight, 1}, Card{Rank::Eight, 2}, Card{Rank::Eight, 3}}).pattern == CardPattern::Bomb);
     assert(game::CardRules::analyze({Card{Rank::SmallJoker, 0}, Card{Rank::BigJoker, 0}}).pattern == CardPattern::Rocket);
 }
