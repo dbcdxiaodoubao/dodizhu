@@ -3,9 +3,13 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <boost/asio.hpp>
+
+#include "gateway/backend_client.hpp"
+#include "gateway/room_manager.hpp"
 
 namespace gateway {
 
@@ -13,19 +17,29 @@ class TcpSession final : public std::enable_shared_from_this<TcpSession> {
 public:
     using tcp = boost::asio::ip::tcp;
 
-    explicit TcpSession(tcp::socket socket);
+    TcpSession(tcp::socket socket,
+               std::shared_ptr<RoomManager> room_manager,
+               std::shared_ptr<BackendClient> backend_client);
 
     void start();
 
 private:
     void read_header();
     void read_body(std::uint32_t packet_size);
+    void handle_packet();
+    void refresh_heartbeat();
+    void send_packet(std::uint16_t message_id, const std::string& body);
     void write_packet();
     void close();
 
     tcp::socket socket_;
+    boost::asio::steady_timer heartbeat_timer_;
     std::array<std::uint8_t, 6> header_buffer_{};
     std::vector<std::uint8_t> packet_;
+    std::uint16_t message_id_ = 0;
+    std::string player_id_;
+    std::shared_ptr<RoomManager> room_manager_;
+    std::shared_ptr<BackendClient> backend_client_;
 };
 
 class TcpServer final {
@@ -40,6 +54,8 @@ private:
     void accept_next();
 
     tcp::acceptor acceptor_;
+    std::shared_ptr<RoomManager> room_manager_ = std::make_shared<RoomManager>();
+    std::shared_ptr<BackendClient> backend_client_ = std::make_shared<BackendClient>();
 };
 
 }  // namespace gateway

@@ -17,6 +17,9 @@ public:
 
     static std::optional<PacketHeader> decode_header(
         const std::array<std::uint8_t, header_size>& bytes);
+
+    static std::array<std::uint8_t, header_size> encode_header(
+        const PacketHeader& header);
 };
 
 }  // namespace gateway

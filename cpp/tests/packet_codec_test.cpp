@@ -9,4 +9,8 @@ int main() {
     assert(header.has_value());
     assert(header->packet_size == 9);
     assert(header->message_id == 42);
+
+    const auto encoded = gateway::PacketCodec::encode_header(*header);
+    const std::array<std::uint8_t, 6> expected{0, 0, 0, 9, 0, 42};
+    assert(encoded == expected);
 }

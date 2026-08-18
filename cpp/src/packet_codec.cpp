@@ -19,4 +19,16 @@ std::optional<PacketHeader> PacketCodec::decode_header(
     return PacketHeader{packet_size, message_id};
 }
 
+std::array<std::uint8_t, PacketCodec::header_size> PacketCodec::encode_header(
+    const PacketHeader& header) {
+    return {
+        static_cast<std::uint8_t>((header.packet_size >> 24U) & 0xFFU),
+        static_cast<std::uint8_t>((header.packet_size >> 16U) & 0xFFU),
+        static_cast<std::uint8_t>((header.packet_size >> 8U) & 0xFFU),
+        static_cast<std::uint8_t>(header.packet_size & 0xFFU),
+        static_cast<std::uint8_t>((header.message_id >> 8U) & 0xFFU),
+        static_cast<std::uint8_t>(header.message_id & 0xFFU),
+    };
+}
+
 }  // namespace gateway

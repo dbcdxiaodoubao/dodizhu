@@ -1,0 +1,78 @@
+#include "gateway/backend_client.hpp"
+
+#include <utility>
+
+#include <boost/asio.hpp>
+#include <boost/beast.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/json.hpp>
+
+namespace gateway {
+namespace {
+
+namespace asio = boost::asio;
+namespace beast = boost::beast;
+namespace http = beast::http;
+using tcp = asio::ip::tcp;
+
+}  // namespace
+
+BackendClient::BackendClient(std::string host, std::string port)
+    : host_(std::move(host)), port_(std::move(port)) {
+}
+
+LoginResult BackendClient::login(const std::string& player_id) const {
+    try {
+        asio::io_context io_context;
+        tcp::resolver resolver(io_context);
+        beast::tcp_stream stream(io_context);
+        stream.connect(resolver.resolve(host_, port_));
+
+        boost::json::object request_body;
+        request_body["playerId"] = player_id;
+
+        http::request<http::string_body> request{http::verb::post, "/api/auth/login", 11};
+        request.set(http::field::host, host_);
+        request.set(http::field::content_type, "application/json");
+        request.body() = boost::json::serialize(request_body);
+        request.prepare_payload();
+        http::write(stream, request);
+
+        beast::flat_buffer buffer;
+        http::response<http::string_body> response;
+        http::read(stream, buffer, response);
+
+        boost::system::error_code ignored;
+        stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+
+        if (response.result() != http::status::ok) {
+            return LoginResult{false, {}, 0, "backend login failed"};
+        }
+        return parse_login_response(response.body());
+    } catch (const std::exception& error) {
+        return LoginResult{false, {}, 0, error.what()};
+    }
+}
+
+LoginResult BackendClient::parse_login_response(const std::string& body) {
+    try {
+        const auto value = boost::json::parse(body);
+        const auto& object = value.as_object();
+        const auto player = object.if_contains("playerId");
+        const auto coins = object.if_contains("coins");
+        if (!player || !coins || !player->is_string() || !coins->is_int64()) {
+            return LoginResult{false, {}, 0, "invalid backend response"};
+        }
+
+        return LoginResult{
+            true,
+            std::string(player->as_string()),
+            static_cast<int>(coins->as_int64()),
+            {},
+        };
+    } catch (const std::exception& error) {
+        return LoginResult{false, {}, 0, error.what()};
+    }
+}
+
+}  // namespace gateway

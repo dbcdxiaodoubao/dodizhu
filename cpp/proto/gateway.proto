@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package doudizhu;
+
+enum MessageId {
+  MSG_UNKNOWN = 0;
+  C2S_LOGIN = 1;
+  S2C_LOGIN_RET = 2;
+  C2S_HEARTBEAT = 3;
+  S2C_HEARTBEAT_RET = 4;
+  C2S_QUICK_MATCH = 5;
+  S2C_MATCH_RET = 6;
+  C2S_CALL_LANDLORD = 7;
+  S2C_CALL_LANDLORD_RET = 8;
+  C2S_PLAY_CARDS = 9;
+  S2C_PLAY_CARDS_RET = 10;
+  C2S_PASS = 11;
+  S2C_PASS_RET = 12;
+}
+
+message C2SLogin {
+  string player_id = 1;
+}
+
+message S2CLoginRet {
+  bool success = 1;
+  string player_id = 2;
+  int32 coins = 3;
+  string message = 4;
+}
+
+message C2SHeartBeat {
+  int64 client_time = 1;
+}
+
+message S2CHeartBeatRet {
+  int64 server_time = 1;
+}
+
+message C2SQuickMatch {}
+
+message C2SCallLandlord {
+  bool call = 1;
+}
+
+message S2CMatchRet {
+  bool success = 1;
+  uint64 room_id = 2;
+  string message = 3;
+  uint32 seat = 4;
+  bool game_started = 5;
+}
+
+message S2CCallLandlordRet {
+  bool accepted = 1;
+  uint32 current_seat = 2;
+  bool game_started = 3;
+  uint32 landlord_seat = 4;
+}
+
+message C2SPlayCards {
+  repeated uint32 cards = 1;
+}
+
+message S2CPlayCardsRet {
+  bool accepted = 1;
+  uint32 current_seat = 2;
+  bool game_over = 3;
+}
+
+message C2SPass {}
+
+message S2CPassRet {
+  bool accepted = 1;
+  uint32 current_seat = 2;
+  bool game_over = 3;
+}
