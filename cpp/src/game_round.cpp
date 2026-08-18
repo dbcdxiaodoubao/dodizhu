@@ -16,6 +16,7 @@ void GameRound::start(std::mt19937& random) {
     last_caller_.reset();
     landlord_seat_.reset();
     winner_seat_.reset();
+    play_started_at_.reset();
     last_play_.reset();
     last_play_seat_.reset();
     pass_count_ = 0;
@@ -41,6 +42,7 @@ bool GameRound::call_landlord(std::uint8_t seat, bool call, std::mt19937& random
         auto& landlord_hand = deal_.hands[*landlord_seat_];
         landlord_hand.insert(landlord_hand.end(), deal_.bottom_cards.begin(), deal_.bottom_cards.end());
         phase_ = GamePhase::PlayCards;
+        play_started_at_ = std::chrono::steady_clock::now();
         current_seat_ = *landlord_seat_;
         last_play_.reset();
         last_play_seat_.reset();
@@ -153,6 +155,13 @@ std::optional<std::uint8_t> GameRound::landlord_seat() const {
 
 std::optional<std::uint8_t> GameRound::winner_seat() const {
     return winner_seat_;
+}
+
+long long GameRound::duration_seconds(std::chrono::steady_clock::time_point now) const {
+    if (!play_started_at_) {
+        return 0;
+    }
+    return std::chrono::duration_cast<std::chrono::seconds>(now - *play_started_at_).count();
 }
 
 const std::vector<Card>& GameRound::hand(std::uint8_t seat) const {

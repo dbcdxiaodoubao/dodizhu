@@ -39,9 +39,11 @@ struct PlayCardsResult {
     std::uint8_t current_seat;
     bool game_over;
     struct SettlementEntry {
+        std::string game_id;
         std::string player_id;
         int coin_change;
         std::string result;
+        long long duration_seconds;
     };
     std::vector<SettlementEntry> settlements;
     std::uint8_t actor_seat;
@@ -61,6 +63,13 @@ struct ExpiredRoom {
     std::vector<PlayCardsResult::SettlementEntry> settlements;
 };
 
+struct TimeoutAction {
+    std::array<std::string, 3> player_ids;
+    std::uint8_t actor_seat;
+    game::GamePhase phase;
+    std::uint8_t current_seat;
+};
+
 class RoomManager final {
 public:
     MatchResult match(const std::string& player_id);
@@ -71,6 +80,8 @@ public:
     std::optional<ReconnectInfo> reconnect_info(const std::string& player_id) const;
     void mark_online(const std::string& player_id);
     void mark_offline(const std::string& player_id, std::chrono::steady_clock::time_point now);
+    std::vector<TimeoutAction> timeout_expired(std::chrono::steady_clock::time_point now);
+    void cleanup_idle(std::chrono::steady_clock::time_point now);
     std::vector<ExpiredRoom> cleanup_expired(std::chrono::steady_clock::time_point now);
 
 private:
@@ -78,6 +89,8 @@ private:
         std::uint64_t id;
         std::vector<std::string> player_ids;
         std::optional<game::GameRound> round;
+        std::chrono::steady_clock::time_point action_deadline{};
+        std::chrono::steady_clock::time_point last_activity = std::chrono::steady_clock::now();
     };
 
     std::uint64_t next_room_id_ = 1;
@@ -86,6 +99,8 @@ private:
     std::unordered_map<std::string, std::uint64_t> player_rooms_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> offline_since_;
     std::mt19937 random_{std::random_device{}()};
+
+    void refresh_deadline(Room& room, std::chrono::steady_clock::time_point now);
 };
 
 }  // namespace gateway

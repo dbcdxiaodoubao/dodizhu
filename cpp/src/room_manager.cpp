@@ -5,6 +5,7 @@
 namespace gateway {
 
 MatchResult RoomManager::match(const std::string& player_id) {
+    const auto now = std::chrono::steady_clock::now();
     for (const auto& [room_id, room] : rooms_) {
         const auto player = std::find(room.player_ids.begin(), room.player_ids.end(), player_id);
         if (player != room.player_ids.end()) {
@@ -25,12 +26,14 @@ MatchResult RoomManager::match(const std::string& player_id) {
 
     auto& room = rooms_.at(*waiting_room_id_);
     room.player_ids.push_back(player_id);
+    room.last_activity = now;
     player_rooms_[player_id] = room.id;
     const auto game_started = room.player_ids.size() == 3;
     if (game_started) {
         room.round.emplace(std::array<std::string, 3>{
             room.player_ids[0], room.player_ids[1], room.player_ids[2]});
         room.round->start(random_);
+        refresh_deadline(room, now);
     }
     auto result = MatchResult{
         room.id,
@@ -66,6 +69,11 @@ std::optional<CallLandlordResult> RoomManager::call_landlord(
     const auto player = std::find(room.player_ids.begin(), room.player_ids.end(), player_id);
     const auto seat = static_cast<std::uint8_t>(std::distance(room.player_ids.begin(), player));
     const auto accepted = room.round->call_landlord(seat, call, random_);
+    if (accepted) {
+        const auto now = std::chrono::steady_clock::now();
+        room.last_activity = now;
+        refresh_deadline(room, now);
+    }
     return CallLandlordResult{
         accepted,
         room.round->current_seat(),
@@ -92,6 +100,11 @@ std::optional<PlayCardsResult> RoomManager::play_cards(
     const auto player = std::find(room.player_ids.begin(), room.player_ids.end(), player_id);
     const auto seat = static_cast<std::uint8_t>(std::distance(room.player_ids.begin(), player));
     const auto accepted = room.round->play_cards(seat, cards);
+    if (accepted) {
+        const auto now = std::chrono::steady_clock::now();
+        room.last_activity = now;
+        refresh_deadline(room, now);
+    }
     PlayCardsResult result{
         accepted,
         room.round->current_seat(),
@@ -105,14 +118,17 @@ std::optional<PlayCardsResult> RoomManager::play_cards(
         const auto landlord = room.round->landlord_seat();
         const auto winner = room.round->winner_seat();
         if (landlord && winner) {
+            const auto duration = room.round->duration_seconds(std::chrono::steady_clock::now());
             const auto landlord_won = *landlord == *winner;
             for (std::uint8_t player_seat = 0; player_seat < room.player_ids.size(); ++player_seat) {
                 const auto is_landlord = player_seat == *landlord;
                 const auto won = is_landlord == landlord_won;
                 result.settlements.push_back(PlayCardsResult::SettlementEntry{
+                    std::to_string(room.id),
                     room.player_ids[player_seat],
                     is_landlord ? (won ? 200 : -200) : (won ? 100 : -100),
                     won ? "WIN" : "LOSE",
+                    duration,
                 });
             }
         }
@@ -135,6 +151,11 @@ std::optional<PlayCardsResult> RoomManager::pass(const std::string& player_id) {
     const auto player = std::find(room.player_ids.begin(), room.player_ids.end(), player_id);
     const auto seat = static_cast<std::uint8_t>(std::distance(room.player_ids.begin(), player));
     const auto accepted = room.round->pass(seat);
+    if (accepted) {
+        const auto now = std::chrono::steady_clock::now();
+        room.last_activity = now;
+        refresh_deadline(room, now);
+    }
     return PlayCardsResult{
         accepted,
         room.round->current_seat(),
@@ -183,6 +204,45 @@ void RoomManager::mark_offline(const std::string& player_id,
     }
 }
 
+std::vector<TimeoutAction> RoomManager::timeout_expired(std::chrono::steady_clock::time_point now) {
+    std::vector<TimeoutAction> actions;
+    for (auto& [_, room] : rooms_) {
+        if (!room.round || room.action_deadline > now) {
+            continue;
+        }
+        const auto actor_seat = room.round->current_seat();
+        if (room.round->timeout(random_)) {
+            room.last_activity = now;
+            refresh_deadline(room, now);
+            actions.push_back(TimeoutAction{
+                {room.player_ids[0], room.player_ids[1], room.player_ids[2]},
+                actor_seat,
+                room.round->phase(),
+                room.round->current_seat(),
+            });
+        }
+    }
+    return actions;
+}
+
+void RoomManager::cleanup_idle(std::chrono::steady_clock::time_point now) {
+    for (auto room = rooms_.begin(); room != rooms_.end();) {
+        if (room->second.round || now - room->second.last_activity < std::chrono::seconds(60)) {
+            ++room;
+            continue;
+        }
+
+        for (const auto& player_id : room->second.player_ids) {
+            player_rooms_.erase(player_id);
+            offline_since_.erase(player_id);
+        }
+        if (waiting_room_id_ && *waiting_room_id_ == room->second.id) {
+            waiting_room_id_.reset();
+        }
+        room = rooms_.erase(room);
+    }
+}
+
 std::vector<ExpiredRoom> RoomManager::cleanup_expired(std::chrono::steady_clock::time_point now) {
     std::vector<std::string> expired_players;
     for (const auto& [player_id, offline_since] : offline_since_) {
@@ -214,13 +274,16 @@ std::vector<ExpiredRoom> RoomManager::cleanup_expired(std::chrono::steady_clock:
                 std::distance(room->second.player_ids.begin(), expired));
             const auto landlord = *room->second.round->landlord_seat();
             const auto landlord_won = expired_seat != landlord;
+            const auto duration = room->second.round->duration_seconds(now);
             for (std::uint8_t seat = 0; seat < room->second.player_ids.size(); ++seat) {
                 const auto is_landlord = seat == landlord;
                 const auto won = is_landlord == landlord_won;
                 expired_room.settlements.push_back(PlayCardsResult::SettlementEntry{
+                    std::to_string(room->second.id),
                     room->second.player_ids[seat],
                     is_landlord ? (won ? 200 : -200) : (won ? 100 : -100),
                     won ? "WIN" : "LOSE",
+                    duration,
                 });
             }
         }
@@ -239,6 +302,17 @@ std::vector<ExpiredRoom> RoomManager::cleanup_expired(std::chrono::steady_clock:
     }
 
     return expired_rooms;
+}
+
+void RoomManager::refresh_deadline(Room& room, std::chrono::steady_clock::time_point now) {
+    if (!room.round || room.round->phase() == game::GamePhase::Settled) {
+        room.action_deadline = std::chrono::steady_clock::time_point::max();
+        return;
+    }
+    const auto timeout = room.round->phase() == game::GamePhase::CallLandlord
+        ? std::chrono::seconds(10)
+        : std::chrono::seconds(15);
+    room.action_deadline = now + timeout;
 }
 
 }  // namespace gateway

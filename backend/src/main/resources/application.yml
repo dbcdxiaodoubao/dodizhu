@@ -9,6 +9,8 @@ spring:
     redis:
       host: localhost
       port: 6380
+      repositories:
+        enabled: false
   jpa:
     hibernate:
       ddl-auto: update

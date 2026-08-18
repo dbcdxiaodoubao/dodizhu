@@ -40,4 +40,20 @@ int main() {
     const auto expired = rooms.cleanup_expired(now + std::chrono::minutes(6));
     assert(expired.size() == 1);
     assert(expired[0].settlements.size() == 3);
+
+    gateway::RoomManager timeout_rooms;
+    timeout_rooms.match("timeout-a");
+    timeout_rooms.match("timeout-b");
+    timeout_rooms.match("timeout-c");
+    const auto timeout_start = std::chrono::steady_clock::now();
+    timeout_rooms.timeout_expired(timeout_start + std::chrono::seconds(11));
+    const auto timeout_info = timeout_rooms.reconnect_info("timeout-a");
+    assert(timeout_info.has_value());
+    assert(timeout_info->current_seat == 1);
+
+    gateway::RoomManager idle_rooms;
+    const auto idle_match = idle_rooms.match("idle-player");
+    idle_rooms.cleanup_idle(std::chrono::steady_clock::now() + std::chrono::seconds(61));
+    const auto next_match = idle_rooms.match("next-player");
+    assert(next_match.room_id == idle_match.room_id + 1);
 }

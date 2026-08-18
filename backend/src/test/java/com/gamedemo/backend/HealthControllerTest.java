@@ -50,9 +50,40 @@ class HealthControllerTest {
 
         mockMvc.perform(post("/api/games/settle")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"playerId\":\"settle-player\",\"coinChange\":120,\"result\":\"WIN\",\"durationSeconds\":60}"))
+                        .content("{\"gameId\":\"game-1\",\"playerId\":\"settle-player\",\"coinChange\":120,\"result\":\"WIN\",\"durationSeconds\":60}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.playerId").value("settle-player"))
                 .andExpect(jsonPath("$.coins").value(1120));
+
+        mockMvc.perform(post("/api/games/settle")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameId\":\"game-1\",\"playerId\":\"settle-player\",\"coinChange\":120,\"result\":\"WIN\",\"durationSeconds\":60}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.coins").value(1120));
+
+        mockMvc.perform(get("/api/games/settle-player/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].gameId").value("game-1"))
+                .andExpect(jsonPath("$[0].coinChange").value(120));
+    }
+
+    @Test
+    void marksPlayerOnlineAfterLogin() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"redis-player\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/players/redis-player/online"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.online").value(true));
+
+        mockMvc.perform(post("/api/players/redis-player/offline"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/players/redis-player/online"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.online").value(false));
     }
 }

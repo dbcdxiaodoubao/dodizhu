@@ -54,7 +54,8 @@ LoginResult BackendClient::login(const std::string& player_id) const {
     }
 }
 
-LoginResult BackendClient::settle(const std::string& player_id,
+LoginResult BackendClient::settle(const std::string& game_id,
+                                  const std::string& player_id,
                                   int coin_change,
                                   const std::string& result,
                                   long long duration_seconds) const {
@@ -65,6 +66,7 @@ LoginResult BackendClient::settle(const std::string& player_id,
         stream.connect(resolver.resolve(host_, port_));
 
         boost::json::object request_body;
+        request_body["gameId"] = game_id;
         request_body["playerId"] = player_id;
         request_body["coinChange"] = coin_change;
         request_body["result"] = result;
@@ -90,6 +92,28 @@ LoginResult BackendClient::settle(const std::string& player_id,
         return parse_login_response(response.body());
     } catch (const std::exception& error) {
         return LoginResult{false, {}, 0, error.what()};
+    }
+}
+
+void BackendClient::mark_offline(const std::string& player_id) const {
+    try {
+        asio::io_context io_context;
+        tcp::resolver resolver(io_context);
+        beast::tcp_stream stream(io_context);
+        stream.connect(resolver.resolve(host_, port_));
+
+        http::request<http::empty_body> request{
+            http::verb::post, "/api/players/" + player_id + "/offline", 11};
+        request.set(http::field::host, host_);
+        http::write(stream, request);
+
+        beast::flat_buffer buffer;
+        http::response<http::empty_body> response;
+        http::read(stream, buffer, response);
+
+        boost::system::error_code ignored;
+        stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+    } catch (const std::exception&) {
     }
 }
 

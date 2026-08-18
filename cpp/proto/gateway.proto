@@ -21,6 +21,7 @@ enum MessageId {
   S2C_RECONNECT_SYNC = 15;
   S2C_SETTLE_RESULT = 16;
   S2C_PLAY_BROADCAST = 17;
+  S2C_TIMEOUT_ACTION = 18;
 }
 
 message C2SLogin {
@@ -110,4 +111,10 @@ message S2CPlayBroadcast {
   repeated uint32 cards = 2;
   bool passed = 3;
   uint32 current_seat = 4;
+}
+
+message S2CTimeoutAction {
+  uint32 actor_seat = 1;
+  uint32 phase = 2;
+  uint32 current_seat = 3;
 }

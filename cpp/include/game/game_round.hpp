@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <random>
@@ -33,6 +34,7 @@ public:
     std::uint8_t current_seat() const;
     std::optional<std::uint8_t> landlord_seat() const;
     std::optional<std::uint8_t> winner_seat() const;
+    long long duration_seconds(std::chrono::steady_clock::time_point now) const;
     const std::vector<Card>& hand(std::uint8_t seat) const;
 
 private:
@@ -45,6 +47,7 @@ private:
     std::optional<std::uint8_t> last_caller_;
     std::optional<std::uint8_t> landlord_seat_;
     std::optional<std::uint8_t> winner_seat_;
+    std::optional<std::chrono::steady_clock::time_point> play_started_at_;
     std::optional<Play> last_play_;
     std::optional<std::uint8_t> last_play_seat_;
     std::uint8_t pass_count_ = 0;

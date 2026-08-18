@@ -249,7 +249,7 @@ private:
                                     settle_ret.SerializeAsString());
                     auto backend_client = backend_client_;
                     asio::post(backend_pool_, [backend_client, settlement] {
-                        backend_client->settle(settlement.player_id, settlement.coin_change, settlement.result, 0);
+                        backend_client->settle(settlement.game_id, settlement.player_id, settlement.coin_change, settlement.result, settlement.duration_seconds);
                     });
                 }
             }
@@ -364,6 +364,11 @@ private:
         heartbeat_timer_.cancel();
         if (!player_id_.empty()) {
             room_manager_->mark_offline(player_id_, std::chrono::steady_clock::now());
+            auto backend_client = backend_client_;
+            const auto player_id = player_id_;
+            asio::post(backend_pool_, [backend_client, player_id] {
+                backend_client->mark_offline(player_id);
+            });
         }
         boost::system::error_code ignored;
         stream_.next_layer().shutdown(tcp::socket::shutdown_both, ignored);

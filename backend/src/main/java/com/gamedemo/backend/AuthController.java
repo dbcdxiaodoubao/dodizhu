@@ -13,19 +13,23 @@ public class AuthController {
     private static final int INITIAL_COINS = 1000;
 
     private final PlayerRepository playerRepository;
+    private final OnlinePlayerService onlinePlayerService;
 
-    public AuthController(PlayerRepository playerRepository) {
+    public AuthController(PlayerRepository playerRepository, OnlinePlayerService onlinePlayerService) {
         this.playerRepository = playerRepository;
+        this.onlinePlayerService = onlinePlayerService;
     }
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return playerRepository.findById(request.playerId())
+        LoginResponse response = playerRepository.findById(request.playerId())
                 .map(player -> new LoginResponse(player.getId(), player.getCoins(), false))
                 .orElseGet(() -> {
                     Player player = playerRepository.save(new Player(request.playerId(), INITIAL_COINS));
                     return new LoginResponse(player.getId(), player.getCoins(), true);
                 });
+        onlinePlayerService.markOnline(response.playerId());
+        return response;
     }
 
     public record LoginRequest(@NotBlank String playerId) {

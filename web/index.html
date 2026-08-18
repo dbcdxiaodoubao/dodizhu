@@ -44,6 +44,8 @@
     let socket;
     let handCodes = [];
     let playerSeat = null;
+    let currentSeat = null;
+    let phase = 0;
     const selectedCards = new Set();
 
     function write(message) {
@@ -114,10 +116,13 @@
         if (cardField === 1 && field === 2) seat = value;
       }
       if (seat !== null) playerSeat = seat;
+      const dealtCurrentSeat = readField(bytes, 3);
+      if (dealtCurrentSeat !== null) currentSeat = dealtCurrentSeat;
+      if (cardField === 1) phase = 1;
       handCodes = cards;
       selectedCards.clear();
       renderHand();
-      if (cardField === 1) gameState.textContent = `阶段：叫地主，当前座位：${readField(bytes, 3)}`;
+      if (cardField === 1) gameState.textContent = `阶段：叫地主，当前座位：${currentSeat}`;
     }
 
     function readField(bytes, wantedField) {
@@ -155,9 +160,13 @@
         selectedCards.clear();
         renderHand();
       }
+      const nextSeat = readField(bytes, 4);
+      if (nextSeat !== null) currentSeat = nextSeat;
+      phase = 2;
+      updateControls();
       gameState.textContent = passed
-        ? `座位 ${seat} 过牌，当前座位：${readField(bytes, 4)}`
-        : `座位 ${seat} 出牌，当前座位：${readField(bytes, 4)}`;
+        ? `座位 ${seat} 过牌，当前座位：${currentSeat}`
+        : `座位 ${seat} 出牌，当前座位：${currentSeat}`;
     }
 
     function applyCallLandlord(bytes) {
@@ -165,6 +174,10 @@
       const called = readField(bytes, 6) !== 0;
       const started = readField(bytes, 3) !== 0;
       const landlord = readField(bytes, 4);
+      const nextSeat = readField(bytes, 2);
+      if (nextSeat !== null) currentSeat = nextSeat;
+      if (started) phase = 2;
+      updateControls();
       gameState.textContent = started
         ? `地主座位：${landlord}，开始出牌`
         : `座位 ${actor} ${called ? '叫地主' : '不叫地主'}，当前座位：${readField(bytes, 2)}`;
@@ -189,6 +202,15 @@
         };
         hand.appendChild(button);
       }
+      updateControls();
+    }
+
+    function updateControls() {
+      const myTurn = playerSeat !== null && playerSeat === currentSeat;
+      document.querySelector('#call').disabled = !myTurn || phase !== 1;
+      document.querySelector('#decline').disabled = !myTurn || phase !== 1;
+      document.querySelector('#play').disabled = !myTurn || phase !== 2 || selectedCards.size === 0;
+      document.querySelector('#pass').disabled = !myTurn || phase !== 2;
     }
 
     document.querySelector('#connect').onclick = () => {
@@ -211,13 +233,21 @@
           13: 'S2C_DEAL_CARDS',
           15: 'S2C_RECONNECT_SYNC',
           16: 'S2C_SETTLE_RESULT',
-          17: 'S2C_PLAY_BROADCAST'
+          17: 'S2C_PLAY_BROADCAST',
+          18: 'S2C_TIMEOUT_ACTION'
         };
         if (messageId === 13) showDeal(bytes);
         if (messageId === 15) showDeal(bytes, 6);
         if (messageId === 17) applyPlayBroadcast(bytes);
         if (messageId === 8) applyCallLandlord(bytes);
         if (messageId === 16) applySettlement(bytes);
+        if (messageId === 18) {
+          const nextSeat = readField(bytes, 3);
+          if (nextSeat !== null) currentSeat = nextSeat;
+          phase = readField(bytes, 2) || phase;
+          updateControls();
+          gameState.textContent = `座位 ${readField(bytes, 1)} 操作超时，当前座位：${currentSeat}`;
+        }
         write(`收到 ${names[messageId] || messageId}: ${[...bytes].join(',')}`);
       };
     };
