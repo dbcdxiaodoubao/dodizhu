@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: doudizhu-backend
+  datasource:
+    url: jdbc:mysql://localhost:3307/doudizhu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: game
+    password: game_dev_password
+  data:
+    redis:
+      host: localhost
+      port: 6380
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  jackson:
+    time-zone: Asia/Shanghai
+
+server:
+  port: 8080
+
+logging:
+  file:
+    name: ../logs/backend.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: ../logs/backend.%d{yyyy-MM-dd}.%i.log.gz
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 100MB
