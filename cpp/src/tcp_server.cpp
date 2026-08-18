@@ -18,12 +18,14 @@ constexpr std::uint32_t max_packet_size = 64U * 1024U;
 TcpSession::TcpSession(tcp::socket socket,
                        std::shared_ptr<RoomManager> room_manager,
                        std::shared_ptr<BackendClient> backend_client,
-                       std::shared_ptr<PlayerNotifier> notifier)
+                       std::shared_ptr<PlayerNotifier> notifier,
+                       boost::asio::thread_pool& backend_pool)
     : socket_(std::move(socket)),
       heartbeat_timer_(socket_.get_executor()),
       room_manager_(std::move(room_manager)),
       backend_client_(std::move(backend_client)),
-      notifier_(std::move(notifier)) {
+      notifier_(std::move(notifier)),
+      backend_pool_(backend_pool) {
 }
 
 void TcpSession::start() {
@@ -96,23 +98,29 @@ void TcpSession::handle_packet() {
             return;
         }
         std::cout << "login player_id=" << login.player_id() << std::endl;
-        const auto backend_login = backend_client_->login(login.player_id());
-        doudizhu::S2CLoginRet login_ret;
-        login_ret.set_success(backend_login.success);
-        login_ret.set_player_id(backend_login.success ? backend_login.player_id : login.player_id());
-        login_ret.set_coins(backend_login.coins);
-        login_ret.set_message(backend_login.success ? "login accepted" : backend_login.message);
-        if (backend_login.success) {
-            player_id_ = backend_login.player_id;
-            const auto weak_session = std::weak_ptr<TcpSession>(shared_from_this());
-            notifier_->register_player(player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
-                if (const auto session = weak_session.lock()) {
-                    session->send_packet(message_id, body);
+        const auto requested_player_id = login.player_id();
+        auto self = shared_from_this();
+        boost::asio::post(backend_pool_, [self, requested_player_id] {
+            const auto backend_login = self->backend_client_->login(requested_player_id);
+            boost::asio::post(self->socket_.get_executor(), [self, requested_player_id, backend_login] {
+                doudizhu::S2CLoginRet login_ret;
+                login_ret.set_success(backend_login.success);
+                login_ret.set_player_id(backend_login.success ? backend_login.player_id : requested_player_id);
+                login_ret.set_coins(backend_login.coins);
+                login_ret.set_message(backend_login.success ? "login accepted" : backend_login.message);
+                if (backend_login.success) {
+                    self->player_id_ = backend_login.player_id;
+                    const auto weak_session = std::weak_ptr<TcpSession>(self);
+                    self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
+                        if (const auto session = weak_session.lock()) {
+                            session->send_packet(message_id, body);
+                        }
+                    });
                 }
+                self->send_packet(doudizhu::S2C_LOGIN_RET, login_ret.SerializeAsString());
             });
-        }
-        send_packet(doudizhu::S2C_LOGIN_RET, login_ret.SerializeAsString());
-        break;
+        });
+        return;
     }
     case doudizhu::C2S_HEARTBEAT: {
         doudizhu::C2SHeartBeat heartbeat;
@@ -216,6 +224,20 @@ void TcpSession::handle_packet() {
         play_ret.set_current_seat(result->current_seat);
         play_ret.set_game_over(result->game_over);
         send_packet(doudizhu::S2C_PLAY_CARDS_RET, play_ret.SerializeAsString());
+        if (result->game_over) {
+            for (const auto& settlement : result->settlements) {
+                doudizhu::S2CSettleResult settle_ret;
+                settle_ret.set_win(settlement.result == "WIN");
+                settle_ret.set_coin_change(settlement.coin_change);
+                notifier_->send(settlement.player_id,
+                                doudizhu::S2C_SETTLE_RESULT,
+                                settle_ret.SerializeAsString());
+                auto backend_client = backend_client_;
+                boost::asio::post(backend_pool_, [backend_client, settlement] {
+                    backend_client->settle(settlement.player_id, settlement.coin_change, settlement.result, 0);
+                });
+            }
+        }
         break;
     }
     case doudizhu::C2S_PASS: {
@@ -236,6 +258,31 @@ void TcpSession::handle_packet() {
         pass_ret.set_current_seat(result->current_seat);
         pass_ret.set_game_over(result->game_over);
         send_packet(doudizhu::S2C_PASS_RET, pass_ret.SerializeAsString());
+        break;
+    }
+    case doudizhu::C2S_RECONNECT: {
+        doudizhu::C2SReconnect request;
+        if (!request.ParseFromArray(body, static_cast<int>(body_size))) {
+            close();
+            return;
+        }
+        const auto result = room_manager_->reconnect_info(player_id_);
+        if (!result) {
+            close();
+            return;
+        }
+        doudizhu::S2CReconnectSync response;
+        response.set_room_id(result->room_id);
+        response.set_seat(result->seat);
+        response.set_phase(static_cast<std::uint32_t>(result->phase));
+        response.set_current_seat(result->current_seat);
+        if (result->landlord_seat) {
+            response.set_landlord_seat(*result->landlord_seat);
+        }
+        for (const auto& card : result->hand) {
+            response.add_cards(game::CardCodec::encode(card));
+        }
+        send_packet(doudizhu::S2C_RECONNECT_SYNC, response.SerializeAsString());
         break;
     }
     default:
@@ -306,11 +353,13 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
                      std::uint16_t port,
                      std::shared_ptr<RoomManager> room_manager,
                      std::shared_ptr<BackendClient> backend_client,
-                     std::shared_ptr<PlayerNotifier> notifier)
+                     std::shared_ptr<PlayerNotifier> notifier,
+                     boost::asio::thread_pool& backend_pool)
     : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
       room_manager_(std::move(room_manager)),
       backend_client_(std::move(backend_client)),
-      notifier_(std::move(notifier)) {
+      notifier_(std::move(notifier)),
+      backend_pool_(backend_pool) {
 }
 
 void TcpServer::start() {
@@ -321,7 +370,7 @@ void TcpServer::accept_next() {
     acceptor_.async_accept(
         [this](const boost::system::error_code& error, tcp::socket socket) {
             if (!error) {
-                std::make_shared<TcpSession>(std::move(socket), room_manager_, backend_client_, notifier_)->start();
+                std::make_shared<TcpSession>(std::move(socket), room_manager_, backend_client_, notifier_, backend_pool_)->start();
             }
 
             accept_next();

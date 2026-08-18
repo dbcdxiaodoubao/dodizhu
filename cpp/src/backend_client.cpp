@@ -54,6 +54,45 @@ LoginResult BackendClient::login(const std::string& player_id) const {
     }
 }
 
+LoginResult BackendClient::settle(const std::string& player_id,
+                                  int coin_change,
+                                  const std::string& result,
+                                  long long duration_seconds) const {
+    try {
+        asio::io_context io_context;
+        tcp::resolver resolver(io_context);
+        beast::tcp_stream stream(io_context);
+        stream.connect(resolver.resolve(host_, port_));
+
+        boost::json::object request_body;
+        request_body["playerId"] = player_id;
+        request_body["coinChange"] = coin_change;
+        request_body["result"] = result;
+        request_body["durationSeconds"] = duration_seconds;
+
+        http::request<http::string_body> request{http::verb::post, "/api/games/settle", 11};
+        request.set(http::field::host, host_);
+        request.set(http::field::content_type, "application/json");
+        request.body() = boost::json::serialize(request_body);
+        request.prepare_payload();
+        http::write(stream, request);
+
+        beast::flat_buffer buffer;
+        http::response<http::string_body> response;
+        http::read(stream, buffer, response);
+
+        boost::system::error_code ignored;
+        stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+
+        if (response.result() != http::status::ok) {
+            return LoginResult{false, {}, 0, "backend settlement failed"};
+        }
+        return parse_login_response(response.body());
+    } catch (const std::exception& error) {
+        return LoginResult{false, {}, 0, error.what()};
+    }
+}
+
 LoginResult BackendClient::parse_login_response(const std::string& body) {
     try {
         const auto value = boost::json::parse(body);

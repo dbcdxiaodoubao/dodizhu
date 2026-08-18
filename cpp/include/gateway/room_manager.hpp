@@ -34,6 +34,21 @@ struct PlayCardsResult {
     bool accepted;
     std::uint8_t current_seat;
     bool game_over;
+    struct SettlementEntry {
+        std::string player_id;
+        int coin_change;
+        std::string result;
+    };
+    std::vector<SettlementEntry> settlements;
+};
+
+struct ReconnectInfo {
+    std::uint64_t room_id;
+    std::uint8_t seat;
+    game::GamePhase phase;
+    std::uint8_t current_seat;
+    std::optional<std::uint8_t> landlord_seat;
+    std::vector<game::Card> hand;
 };
 
 class RoomManager final {
@@ -43,6 +58,7 @@ public:
     std::optional<PlayCardsResult> play_cards(
         const std::string& player_id, const std::vector<game::Card>& cards);
     std::optional<PlayCardsResult> pass(const std::string& player_id);
+    std::optional<ReconnectInfo> reconnect_info(const std::string& player_id) const;
 
 private:
     struct Room {

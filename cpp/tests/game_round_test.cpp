@@ -29,4 +29,8 @@ int main() {
     assert(round.pass(1));
     assert(round.pass(2));
     assert(round.current_seat() == 0);
+
+    assert(round.timeout(random));
+    assert(round.hand(0).size() == 18);
+    assert(round.current_seat() == 1);
 }

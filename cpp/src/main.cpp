@@ -12,8 +12,9 @@ int main() {
         auto room_manager = std::make_shared<gateway::RoomManager>();
         auto backend_client = std::make_shared<gateway::BackendClient>();
         auto notifier = std::make_shared<gateway::PlayerNotifier>();
-        gateway::TcpServer tcp_server(io_context, 9000, room_manager, backend_client, notifier);
-        gateway::WebSocketServer websocket_server(io_context, 9001, room_manager, backend_client, notifier);
+        boost::asio::thread_pool backend_pool(2);
+        gateway::TcpServer tcp_server(io_context, 9000, room_manager, backend_client, notifier, backend_pool);
+        gateway::WebSocketServer websocket_server(io_context, 9001, room_manager, backend_client, notifier, backend_pool);
         tcp_server.start();
         websocket_server.start();
 

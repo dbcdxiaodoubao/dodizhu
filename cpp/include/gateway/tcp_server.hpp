@@ -22,7 +22,8 @@ public:
     TcpSession(tcp::socket socket,
                std::shared_ptr<RoomManager> room_manager,
                std::shared_ptr<BackendClient> backend_client,
-               std::shared_ptr<PlayerNotifier> notifier);
+               std::shared_ptr<PlayerNotifier> notifier,
+               boost::asio::thread_pool& backend_pool);
 
     void start();
 
@@ -46,6 +47,7 @@ private:
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;
     std::shared_ptr<PlayerNotifier> notifier_;
+    boost::asio::thread_pool& backend_pool_;
 };
 
 class TcpServer final {
@@ -56,7 +58,8 @@ public:
               std::uint16_t port,
               std::shared_ptr<RoomManager> room_manager,
               std::shared_ptr<BackendClient> backend_client,
-              std::shared_ptr<PlayerNotifier> notifier);
+              std::shared_ptr<PlayerNotifier> notifier,
+              boost::asio::thread_pool& backend_pool);
 
     void start();
 
@@ -67,6 +70,7 @@ private:
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;
     std::shared_ptr<PlayerNotifier> notifier_;
+    boost::asio::thread_pool& backend_pool_;
 };
 
 }  // namespace gateway

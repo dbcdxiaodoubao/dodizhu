@@ -31,12 +31,14 @@ public:
     WebSocketSession(tcp::socket socket,
                      std::shared_ptr<RoomManager> room_manager,
                      std::shared_ptr<BackendClient> backend_client,
-                     std::shared_ptr<PlayerNotifier> notifier)
+                     std::shared_ptr<PlayerNotifier> notifier,
+                     asio::thread_pool& backend_pool)
         : stream_(std::move(socket)),
           heartbeat_timer_(stream_.get_executor()),
           room_manager_(std::move(room_manager)),
           backend_client_(std::move(backend_client)),
-          notifier_(std::move(notifier)) {
+          notifier_(std::move(notifier)),
+          backend_pool_(backend_pool) {
     }
 
     void start() {
@@ -98,22 +100,28 @@ private:
                 close();
                 return;
             }
-            const auto result = backend_client_->login(request.player_id());
-            doudizhu::S2CLoginRet response;
-            response.set_success(result.success);
-            response.set_player_id(result.success ? result.player_id : request.player_id());
-            response.set_coins(result.coins);
-            response.set_message(result.success ? "login accepted" : result.message);
-            if (result.success) {
-                player_id_ = result.player_id;
-                const auto weak_session = std::weak_ptr<WebSocketSession>(shared_from_this());
-                notifier_->register_player(player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
-                    if (const auto session = weak_session.lock()) {
-                        session->send_packet(message_id, body);
+            const auto requested_player_id = request.player_id();
+            auto self = shared_from_this();
+            asio::post(backend_pool_, [self, requested_player_id] {
+                const auto result = self->backend_client_->login(requested_player_id);
+                asio::post(self->stream_.get_executor(), [self, requested_player_id, result] {
+                    doudizhu::S2CLoginRet response;
+                    response.set_success(result.success);
+                    response.set_player_id(result.success ? result.player_id : requested_player_id);
+                    response.set_coins(result.coins);
+                    response.set_message(result.success ? "login accepted" : result.message);
+                    if (result.success) {
+                        self->player_id_ = result.player_id;
+                        const auto weak_session = std::weak_ptr<WebSocketSession>(self);
+                        self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
+                            if (const auto session = weak_session.lock()) {
+                                session->send_packet(message_id, body);
+                            }
+                        });
                     }
+                    self->send_packet(doudizhu::S2C_LOGIN_RET, response.SerializeAsString());
                 });
-            }
-            send_packet(doudizhu::S2C_LOGIN_RET, response.SerializeAsString());
+            });
             return;
         }
         case doudizhu::C2S_HEARTBEAT: {
@@ -211,6 +219,20 @@ private:
             response.set_current_seat(result->current_seat);
             response.set_game_over(result->game_over);
             send_packet(doudizhu::S2C_PLAY_CARDS_RET, response.SerializeAsString());
+            if (result->game_over) {
+                for (const auto& settlement : result->settlements) {
+                    doudizhu::S2CSettleResult settle_ret;
+                    settle_ret.set_win(settlement.result == "WIN");
+                    settle_ret.set_coin_change(settlement.coin_change);
+                    notifier_->send(settlement.player_id,
+                                    doudizhu::S2C_SETTLE_RESULT,
+                                    settle_ret.SerializeAsString());
+                    auto backend_client = backend_client_;
+                    asio::post(backend_pool_, [backend_client, settlement] {
+                        backend_client->settle(settlement.player_id, settlement.coin_change, settlement.result, 0);
+                    });
+                }
+            }
             return;
         }
         case doudizhu::C2S_PASS: {
@@ -229,6 +251,31 @@ private:
             response.set_current_seat(result->current_seat);
             response.set_game_over(result->game_over);
             send_packet(doudizhu::S2C_PASS_RET, response.SerializeAsString());
+            return;
+        }
+        case doudizhu::C2S_RECONNECT: {
+            doudizhu::C2SReconnect request;
+            if (!request.ParseFromArray(body, static_cast<int>(body_size))) {
+                close();
+                return;
+            }
+            const auto result = room_manager_->reconnect_info(player_id_);
+            if (!result) {
+                close();
+                return;
+            }
+            doudizhu::S2CReconnectSync response;
+            response.set_room_id(result->room_id);
+            response.set_seat(result->seat);
+            response.set_phase(static_cast<std::uint32_t>(result->phase));
+            response.set_current_seat(result->current_seat);
+            if (result->landlord_seat) {
+                response.set_landlord_seat(*result->landlord_seat);
+            }
+            for (const auto& card : result->hand) {
+                response.add_cards(game::CardCodec::encode(card));
+            }
+            send_packet(doudizhu::S2C_RECONNECT_SYNC, response.SerializeAsString());
             return;
         }
         default:
@@ -301,6 +348,7 @@ private:
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;
     std::shared_ptr<PlayerNotifier> notifier_;
+    asio::thread_pool& backend_pool_;
 };
 
 }  // namespace
@@ -309,11 +357,13 @@ WebSocketServer::WebSocketServer(asio::io_context& io_context,
                                  std::uint16_t port,
                                  std::shared_ptr<RoomManager> room_manager,
                                  std::shared_ptr<BackendClient> backend_client,
-                                 std::shared_ptr<PlayerNotifier> notifier)
+                                 std::shared_ptr<PlayerNotifier> notifier,
+                                 asio::thread_pool& backend_pool)
     : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
       room_manager_(std::move(room_manager)),
       backend_client_(std::move(backend_client)),
-      notifier_(std::move(notifier)) {
+      notifier_(std::move(notifier)),
+      backend_pool_(backend_pool) {
 }
 
 void WebSocketServer::start() {
@@ -323,7 +373,7 @@ void WebSocketServer::start() {
 void WebSocketServer::accept_next() {
     acceptor_.async_accept([this](const boost::system::error_code& error, tcp::socket socket) {
         if (!error) {
-            std::make_shared<WebSocketSession>(std::move(socket), room_manager_, backend_client_, notifier_)->start();
+            std::make_shared<WebSocketSession>(std::move(socket), room_manager_, backend_client_, notifier_, backend_pool_)->start();
         }
         accept_next();
     });

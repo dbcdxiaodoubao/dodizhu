@@ -89,11 +89,31 @@ std::optional<PlayCardsResult> RoomManager::play_cards(
     const auto player = std::find(room.player_ids.begin(), room.player_ids.end(), player_id);
     const auto seat = static_cast<std::uint8_t>(std::distance(room.player_ids.begin(), player));
     const auto accepted = room.round->play_cards(seat, cards);
-    return PlayCardsResult{
+    PlayCardsResult result{
         accepted,
         room.round->current_seat(),
         room.round->phase() == game::GamePhase::Settled,
+        {},
     };
+
+    if (result.game_over && accepted) {
+        const auto landlord = room.round->landlord_seat();
+        const auto winner = room.round->winner_seat();
+        if (landlord && winner) {
+            const auto landlord_won = *landlord == *winner;
+            for (std::uint8_t player_seat = 0; player_seat < room.player_ids.size(); ++player_seat) {
+                const auto is_landlord = player_seat == *landlord;
+                const auto won = is_landlord == landlord_won;
+                result.settlements.push_back(PlayCardsResult::SettlementEntry{
+                    room.player_ids[player_seat],
+                    is_landlord ? (won ? 200 : -200) : (won ? 100 : -100),
+                    won ? "WIN" : "LOSE",
+                });
+            }
+        }
+    }
+
+    return result;
 }
 
 std::optional<PlayCardsResult> RoomManager::pass(const std::string& player_id) {
@@ -114,6 +134,34 @@ std::optional<PlayCardsResult> RoomManager::pass(const std::string& player_id) {
         accepted,
         room.round->current_seat(),
         room.round->phase() == game::GamePhase::Settled,
+        {},
+    };
+}
+
+std::optional<ReconnectInfo> RoomManager::reconnect_info(const std::string& player_id) const {
+    const auto player_room = player_rooms_.find(player_id);
+    if (player_room == player_rooms_.end()) {
+        return std::nullopt;
+    }
+
+    const auto room = rooms_.find(player_room->second);
+    if (room == rooms_.end() || !room->second.round) {
+        return std::nullopt;
+    }
+
+    const auto player = std::find(room->second.player_ids.begin(), room->second.player_ids.end(), player_id);
+    if (player == room->second.player_ids.end()) {
+        return std::nullopt;
+    }
+
+    const auto seat = static_cast<std::uint8_t>(std::distance(room->second.player_ids.begin(), player));
+    return ReconnectInfo{
+        room->second.id,
+        seat,
+        room->second.round->phase(),
+        room->second.round->current_seat(),
+        room->second.round->landlord_seat(),
+        room->second.round->hand(seat),
     };
 }
 

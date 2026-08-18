@@ -26,6 +26,7 @@
       <button id="match">快速匹配</button>
       <button id="call">叫地主</button>
       <button id="pass">不叫地主</button>
+      <button id="reconnect">重连同步</button>
     </div>
     <p>手牌：<span id="hand">等待发牌</span></p>
     <pre id="log"></pre>
@@ -89,7 +90,7 @@
       return rank >= 16 ? names[rank] : `${suit}${names[rank] || rank}`;
     }
 
-    function showDeal(bytes) {
+    function showDeal(bytes, cardField = 1) {
       const cards = [];
       let index = 6;
       while (index < bytes.length) {
@@ -100,7 +101,7 @@
         if (wireType !== 0) break;
         const [value, afterValue] = readVarint(bytes, index);
         index = afterValue;
-        if (field === 1) cards.push(value);
+        if (field === cardField) cards.push(value);
       }
       hand.textContent = cards.map(cardName).join(' ');
     }
@@ -122,9 +123,12 @@
           8: 'S2C_CALL_LANDLORD_RET',
           10: 'S2C_PLAY_CARDS_RET',
           12: 'S2C_PASS_RET',
-          13: 'S2C_DEAL_CARDS'
+          13: 'S2C_DEAL_CARDS',
+          15: 'S2C_RECONNECT_SYNC',
+          16: 'S2C_SETTLE_RESULT'
         };
         if (messageId === 13) showDeal(bytes);
+        if (messageId === 15) showDeal(bytes, 6);
         write(`收到 ${names[messageId] || messageId}: ${[...bytes].join(',')}`);
       };
     };
@@ -137,6 +141,7 @@
     document.querySelector('#match').onclick = () => send(5);
     document.querySelector('#call').onclick = () => send(7, [0x08, 0x01]);
     document.querySelector('#pass').onclick = () => send(7, [0x08, 0x00]);
+    document.querySelector('#reconnect').onclick = () => send(14);
   </script>
 </body>
 </html>

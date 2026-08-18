@@ -25,12 +25,14 @@ public:
 
     void start(std::mt19937& random);
     bool call_landlord(std::uint8_t seat, bool call, std::mt19937& random);
+    bool timeout(std::mt19937& random);
     bool play_cards(std::uint8_t seat, const std::vector<Card>& cards);
     bool pass(std::uint8_t seat);
 
     GamePhase phase() const;
     std::uint8_t current_seat() const;
     std::optional<std::uint8_t> landlord_seat() const;
+    std::optional<std::uint8_t> winner_seat() const;
     const std::vector<Card>& hand(std::uint8_t seat) const;
 
 private:
@@ -42,6 +44,7 @@ private:
     std::uint8_t call_count_ = 0;
     std::optional<std::uint8_t> last_caller_;
     std::optional<std::uint8_t> landlord_seat_;
+    std::optional<std::uint8_t> winner_seat_;
     std::optional<Play> last_play_;
     std::optional<std::uint8_t> last_play_seat_;
     std::uint8_t pass_count_ = 0;

@@ -17,6 +17,9 @@ enum MessageId {
   C2S_PASS = 11;
   S2C_PASS_RET = 12;
   S2C_DEAL_CARDS = 13;
+  C2S_RECONNECT = 14;
+  S2C_RECONNECT_SYNC = 15;
+  S2C_SETTLE_RESULT = 16;
 }
 
 message C2SLogin {
@@ -81,4 +84,20 @@ message S2CDealCards {
   repeated uint32 cards = 1;
   uint32 seat = 2;
   uint32 current_seat = 3;
+}
+
+message C2SReconnect {}
+
+message S2CReconnectSync {
+  uint64 room_id = 1;
+  uint32 seat = 2;
+  uint32 phase = 3;
+  uint32 current_seat = 4;
+  uint32 landlord_seat = 5;
+  repeated uint32 cards = 6;
+}
+
+message S2CSettleResult {
+  bool win = 1;
+  int32 coin_change = 2;
 }
