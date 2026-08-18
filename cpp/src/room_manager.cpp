@@ -12,6 +12,7 @@ MatchResult RoomManager::match(const std::string& player_id) {
                 room_id,
                 static_cast<std::uint8_t>(std::distance(room.player_ids.begin(), player)),
                 room.round.has_value(),
+                std::nullopt,
             };
         }
     }
@@ -31,14 +32,20 @@ MatchResult RoomManager::match(const std::string& player_id) {
             room.player_ids[0], room.player_ids[1], room.player_ids[2]});
         room.round->start(random_);
     }
-    const auto result = MatchResult{
+    auto result = MatchResult{
         room.id,
         static_cast<std::uint8_t>(room.player_ids.size() - 1),
         game_started,
+        std::nullopt,
     };
 
     if (game_started) {
         waiting_room_id_.reset();
+        result.game_start = MatchResult::GameStartInfo{
+            {room.player_ids[0], room.player_ids[1], room.player_ids[2]},
+            {room.round->hand(0), room.round->hand(1), room.round->hand(2)},
+            room.round->current_seat(),
+        };
     }
 
     return result;

@@ -27,4 +27,8 @@ public class Player {
     public int getCoins() {
         return coins;
     }
+
+    public void changeCoins(int amount) {
+        coins += amount;
+    }
 }

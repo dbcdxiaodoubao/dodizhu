@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -14,6 +15,12 @@ struct MatchResult {
     std::uint64_t room_id;
     std::uint8_t seat;
     bool game_started;
+    struct GameStartInfo {
+        std::array<std::string, 3> player_ids;
+        std::array<std::vector<game::Card>, 3> hands;
+        std::uint8_t current_seat;
+    };
+    std::optional<GameStartInfo> game_start;
 };
 
 struct CallLandlordResult {

@@ -17,11 +17,13 @@ constexpr std::uint32_t max_packet_size = 64U * 1024U;
 
 TcpSession::TcpSession(tcp::socket socket,
                        std::shared_ptr<RoomManager> room_manager,
-                       std::shared_ptr<BackendClient> backend_client)
+                       std::shared_ptr<BackendClient> backend_client,
+                       std::shared_ptr<PlayerNotifier> notifier)
     : socket_(std::move(socket)),
       heartbeat_timer_(socket_.get_executor()),
       room_manager_(std::move(room_manager)),
-      backend_client_(std::move(backend_client)) {
+      backend_client_(std::move(backend_client)),
+      notifier_(std::move(notifier)) {
 }
 
 void TcpSession::start() {
@@ -30,6 +32,10 @@ void TcpSession::start() {
 }
 
 void TcpSession::read_header() {
+    if (read_in_progress_) {
+        return;
+    }
+    read_in_progress_ = true;
     auto self = shared_from_this();
     boost::asio::async_read(
         socket_,
@@ -57,7 +63,8 @@ void TcpSession::read_body(std::uint32_t packet_size) {
     std::copy(header_buffer_.begin(), header_buffer_.end(), packet_.begin());
 
     if (body_size == 0) {
-        write_packet();
+        read_in_progress_ = false;
+        handle_packet();
         return;
     }
 
@@ -71,6 +78,7 @@ void TcpSession::read_body(std::uint32_t packet_size) {
                 return;
             }
 
+            self->read_in_progress_ = false;
             self->handle_packet();
         });
 }
@@ -96,6 +104,12 @@ void TcpSession::handle_packet() {
         login_ret.set_message(backend_login.success ? "login accepted" : backend_login.message);
         if (backend_login.success) {
             player_id_ = backend_login.player_id;
+            const auto weak_session = std::weak_ptr<TcpSession>(shared_from_this());
+            notifier_->register_player(player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
+                if (const auto session = weak_session.lock()) {
+                    session->send_packet(message_id, body);
+                }
+            });
         }
         send_packet(doudizhu::S2C_LOGIN_RET, login_ret.SerializeAsString());
         break;
@@ -131,6 +145,21 @@ void TcpSession::handle_packet() {
             match_ret.set_seat(result.seat);
             match_ret.set_game_started(result.game_started);
             match_ret.set_message(result.game_started ? "game ready" : "waiting for players");
+            send_packet(doudizhu::S2C_MATCH_RET, match_ret.SerializeAsString());
+            if (result.game_start) {
+                for (std::size_t seat = 0; seat < result.game_start->hands.size(); ++seat) {
+                    doudizhu::S2CDealCards deal;
+                    deal.set_seat(static_cast<std::uint32_t>(seat));
+                    deal.set_current_seat(result.game_start->current_seat);
+                    for (const auto& card : result.game_start->hands[seat]) {
+                        deal.add_cards(game::CardCodec::encode(card));
+                    }
+                    notifier_->send(result.game_start->player_ids[seat],
+                                    doudizhu::S2C_DEAL_CARDS,
+                                    deal.SerializeAsString());
+                }
+            }
+            return;
         }
         send_packet(doudizhu::S2C_MATCH_RET, match_ret.SerializeAsString());
         break;
@@ -235,24 +264,34 @@ void TcpSession::send_packet(std::uint16_t message_id, const std::string& body) 
 
     const auto header = PacketCodec::encode_header(
         PacketHeader{static_cast<std::uint32_t>(packet_size), message_id});
-    packet_.resize(packet_size);
-    std::copy(header.begin(), header.end(), packet_.begin());
-    std::copy(body.begin(), body.end(), packet_.begin() + PacketCodec::header_size);
-    write_packet();
+    std::vector<std::uint8_t> packet(packet_size);
+    std::copy(header.begin(), header.end(), packet.begin());
+    std::copy(body.begin(), body.end(), packet.begin() + PacketCodec::header_size);
+
+    const auto start_write = write_queue_.empty();
+    write_queue_.push_back(std::move(packet));
+    if (start_write) {
+        write_next();
+    }
 }
 
-void TcpSession::write_packet() {
+void TcpSession::write_next() {
     auto self = shared_from_this();
     boost::asio::async_write(
         socket_,
-        boost::asio::buffer(packet_),
+        boost::asio::buffer(write_queue_.front()),
         [self](const boost::system::error_code& error, std::size_t) {
             if (error) {
                 self->close();
                 return;
             }
 
-            self->read_header();
+            self->write_queue_.pop_front();
+            if (!self->write_queue_.empty()) {
+                self->write_next();
+            } else if (!self->read_in_progress_) {
+                self->read_header();
+            }
         });
 }
 
@@ -263,8 +302,15 @@ void TcpSession::close() {
     socket_.close(ignored);
 }
 
-TcpServer::TcpServer(boost::asio::io_context& io_context, std::uint16_t port)
-    : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {
+TcpServer::TcpServer(boost::asio::io_context& io_context,
+                     std::uint16_t port,
+                     std::shared_ptr<RoomManager> room_manager,
+                     std::shared_ptr<BackendClient> backend_client,
+                     std::shared_ptr<PlayerNotifier> notifier)
+    : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
+      room_manager_(std::move(room_manager)),
+      backend_client_(std::move(backend_client)),
+      notifier_(std::move(notifier)) {
 }
 
 void TcpServer::start() {
@@ -275,7 +321,7 @@ void TcpServer::accept_next() {
     acceptor_.async_accept(
         [this](const boost::system::error_code& error, tcp::socket socket) {
             if (!error) {
-                std::make_shared<TcpSession>(std::move(socket), room_manager_, backend_client_)->start();
+                std::make_shared<TcpSession>(std::move(socket), room_manager_, backend_client_, notifier_)->start();
             }
 
             accept_next();

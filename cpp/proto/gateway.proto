@@ -16,6 +16,7 @@ enum MessageId {
   S2C_PLAY_CARDS_RET = 10;
   C2S_PASS = 11;
   S2C_PASS_RET = 12;
+  S2C_DEAL_CARDS = 13;
 }
 
 message C2SLogin {
@@ -74,4 +75,10 @@ message S2CPassRet {
   bool accepted = 1;
   uint32 current_seat = 2;
   bool game_over = 3;
+}
+
+message S2CDealCards {
+  repeated uint32 cards = 1;
+  uint32 seat = 2;
+  uint32 current_seat = 3;
 }

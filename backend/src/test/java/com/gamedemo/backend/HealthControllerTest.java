@@ -39,4 +39,20 @@ class HealthControllerTest {
                 .andExpect(jsonPath("$.coins").value(1000))
                 .andExpect(jsonPath("$.created").value(true));
     }
+
+    @Test
+    @Transactional
+    void settlesGameAndUpdatesCoins() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"settle-player\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/games/settle")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"settle-player\",\"coinChange\":120,\"result\":\"WIN\",\"durationSeconds\":60}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.playerId").value("settle-player"))
+                .andExpect(jsonPath("$.coins").value(1120));
+    }
 }

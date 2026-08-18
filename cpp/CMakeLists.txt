@@ -32,6 +32,7 @@ target_link_libraries(protocol PUBLIC protobuf::libprotobuf)
 add_executable(gateway
     src/main.cpp
     src/tcp_server.cpp
+    src/websocket_server.cpp
 )
 target_include_directories(gateway PRIVATE include)
 target_link_libraries(gateway PRIVATE packet_codec card_codec protocol room_manager backend_client Boost::asio Boost::system Boost::json ws2_32 mswsock)
@@ -99,6 +100,10 @@ add_custom_command(TARGET backend_client_test POST_BUILD
             $<TARGET_FILE_DIR:backend_client_test>
 )
 add_test(NAME backend_client_test COMMAND backend_client_test)
+
+add_executable(player_notifier_test tests/player_notifier_test.cpp)
+target_include_directories(player_notifier_test PRIVATE include)
+add_test(NAME player_notifier_test COMMAND player_notifier_test)
 
 add_executable(game_round_test tests/game_round_test.cpp)
 target_link_libraries(game_round_test PRIVATE game_round)
