@@ -22,6 +22,7 @@ enum MessageId {
   S2C_SETTLE_RESULT = 16;
   S2C_PLAY_BROADCAST = 17;
   S2C_TIMEOUT_ACTION = 18;
+  S2C_ROOM_STATE = 19;
 }
 
 message C2SLogin {
@@ -117,4 +118,20 @@ message S2CTimeoutAction {
   uint32 actor_seat = 1;
   uint32 phase = 2;
   uint32 current_seat = 3;
+}
+
+message RoomPlayer {
+  uint32 seat = 1;
+  string player_id = 2;
+  bool online = 3;
+}
+
+message S2CRoomState {
+  uint64 room_id = 1;
+  uint32 self_seat = 2;
+  uint32 phase = 3;
+  uint32 current_seat = 4;
+  uint32 landlord_seat = 5;
+  repeated RoomPlayer players = 6;
+  repeated uint32 own_cards = 7;
 }

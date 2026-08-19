@@ -7,6 +7,7 @@
 #include "gateway.pb.h"
 #include "gateway/packet_codec.hpp"
 #include "game/card_codec.hpp"
+#include "gateway/room_state_codec.hpp"
 
 namespace gateway {
 namespace {
@@ -166,6 +167,13 @@ void TcpSession::handle_packet() {
                     notifier_->send(result.game_start->player_ids[seat],
                                     doudizhu::S2C_DEAL_CARDS,
                                     deal.SerializeAsString());
+
+                    const auto state = room_manager_->room_state(result.game_start->player_ids[seat]);
+                    if (state) {
+                        notifier_->send(result.game_start->player_ids[seat],
+                                        doudizhu::S2C_ROOM_STATE,
+                                        encode_room_state(*state));
+                    }
                 }
             }
             return;
@@ -198,6 +206,8 @@ void TcpSession::handle_packet() {
         if (result->accepted) {
             for (const auto& player : result->player_ids) {
                 notifier_->send(player, doudizhu::S2C_CALL_LANDLORD_RET, call_ret.SerializeAsString());
+                const auto state = room_manager_->room_state(player);
+                if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
             }
         } else {
             send_packet(doudizhu::S2C_CALL_LANDLORD_RET, call_ret.SerializeAsString());
@@ -242,6 +252,8 @@ void TcpSession::handle_packet() {
             }
             for (const auto& player : result->player_ids) {
                 notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+                const auto state = room_manager_->room_state(player);
+                if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
             }
         }
         if (result->game_over) {
@@ -285,6 +297,8 @@ void TcpSession::handle_packet() {
             broadcast.set_current_seat(result->current_seat);
             for (const auto& player : result->player_ids) {
                 notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+                const auto state = room_manager_->room_state(player);
+                if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
             }
         }
         break;
@@ -431,6 +445,8 @@ void TcpServer::schedule_cleanup() {
             timeout_ret.set_current_seat(action.current_seat);
             for (const auto& player : action.player_ids) {
                 notifier_->send(player, doudizhu::S2C_TIMEOUT_ACTION, timeout_ret.SerializeAsString());
+                const auto state = room_manager_->room_state(player);
+                if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
             }
         }
         room_manager_->cleanup_idle(now);

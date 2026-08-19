@@ -193,6 +193,38 @@ std::optional<ReconnectInfo> RoomManager::reconnect_info(const std::string& play
     };
 }
 
+std::optional<RoomState> RoomManager::room_state(const std::string& player_id) const {
+    const auto player_room = player_rooms_.find(player_id);
+    if (player_room == player_rooms_.end()) {
+        return std::nullopt;
+    }
+    const auto room = rooms_.find(player_room->second);
+    if (room == rooms_.end() || !room->second.round) {
+        return std::nullopt;
+    }
+    const auto player = std::find(room->second.player_ids.begin(), room->second.player_ids.end(), player_id);
+    if (player == room->second.player_ids.end()) {
+        return std::nullopt;
+    }
+    const auto self_seat = static_cast<std::uint8_t>(std::distance(room->second.player_ids.begin(), player));
+    std::array<RoomState::PlayerInfo, 3> players{};
+    for (std::uint8_t seat = 0; seat < 3; ++seat) {
+        players[seat] = RoomState::PlayerInfo{
+            room->second.player_ids[seat],
+            offline_since_.find(room->second.player_ids[seat]) == offline_since_.end(),
+        };
+    }
+    return RoomState{
+        room->second.id,
+        self_seat,
+        room->second.round->phase(),
+        room->second.round->current_seat(),
+        room->second.round->landlord_seat(),
+        players,
+        room->second.round->hand(self_seat),
+    };
+}
+
 void RoomManager::mark_online(const std::string& player_id) {
     offline_since_.erase(player_id);
 }

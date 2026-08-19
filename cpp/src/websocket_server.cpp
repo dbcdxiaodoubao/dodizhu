@@ -14,6 +14,7 @@
 
 #include "gateway.pb.h"
 #include "gateway/packet_codec.hpp"
+#include "gateway/room_state_codec.hpp"
 #include "game/card_codec.hpp"
 
 namespace gateway {
@@ -166,6 +167,13 @@ private:
                         notifier_->send(result.game_start->player_ids[seat],
                                         doudizhu::S2C_DEAL_CARDS,
                                         deal.SerializeAsString());
+
+                        const auto state = room_manager_->room_state(result.game_start->player_ids[seat]);
+                        if (state) {
+                            notifier_->send(result.game_start->player_ids[seat],
+                                            doudizhu::S2C_ROOM_STATE,
+                                            encode_room_state(*state));
+                        }
                     }
                 }
                 return;
@@ -196,6 +204,8 @@ private:
             if (result->accepted) {
                 for (const auto& player : result->player_ids) {
                     notifier_->send(player, doudizhu::S2C_CALL_LANDLORD_RET, response.SerializeAsString());
+                    const auto state = room_manager_->room_state(player);
+                    if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
                 }
             } else {
                 send_packet(doudizhu::S2C_CALL_LANDLORD_RET, response.SerializeAsString());
@@ -237,6 +247,8 @@ private:
                 }
                 for (const auto& player : result->player_ids) {
                     notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+                    const auto state = room_manager_->room_state(player);
+                    if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
                 }
             }
             if (result->game_over) {
@@ -278,6 +290,8 @@ private:
                 broadcast.set_current_seat(result->current_seat);
                 for (const auto& player : result->player_ids) {
                     notifier_->send(player, doudizhu::S2C_PLAY_BROADCAST, broadcast.SerializeAsString());
+                    const auto state = room_manager_->room_state(player);
+                    if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
                 }
             }
             return;

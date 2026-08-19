@@ -33,6 +33,7 @@
       <button id="reconnect">重连同步</button>
     </div>
     <p>手牌：</p><div id="hand">等待发牌</div>
+    <p>玩家：<span id="players">等待房间状态</span></p>
     <pre id="log"></pre>
   </main>
   <script>
@@ -41,6 +42,7 @@
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
     const hand = document.querySelector('#hand');
+    const players = document.querySelector('#players');
     let socket;
     let handCodes = [];
     let playerSeat = null;
@@ -109,16 +111,28 @@
         index = afterTag;
         const field = tag >> 3;
         const wireType = tag & 7;
+        if (field === cardField && wireType === 2) {
+          const [length, afterLength] = readVarint(bytes, index);
+          index = afterLength;
+          const end = index + length;
+          while (index < end) {
+            const [value, afterValue] = readVarint(bytes, index);
+            index = afterValue;
+            cards.push(value);
+          }
+          continue;
+        }
         if (wireType !== 0) break;
         const [value, afterValue] = readVarint(bytes, index);
         index = afterValue;
         if (field === cardField) cards.push(value);
-        if (cardField === 1 && field === 2) seat = value;
+        if ((cardField === 1 && field === 2) || (cardField === 6 && field === 2) || (cardField === 7 && field === 2)) seat = value;
       }
       if (seat !== null) playerSeat = seat;
-      const dealtCurrentSeat = readField(bytes, 3);
+      const dealtCurrentSeat = cardField === 7 ? readField(bytes, 4) : readField(bytes, 3);
       if (dealtCurrentSeat !== null) currentSeat = dealtCurrentSeat;
       if (cardField === 1) phase = 1;
+      if (cardField === 7) phase = readField(bytes, 3) || phase;
       handCodes = cards;
       selectedCards.clear();
       renderHand();
@@ -148,6 +162,17 @@
         index = afterTag;
         const field = tag >> 3;
         const wireType = tag & 7;
+        if (field === 2 && wireType === 2) {
+          const [length, afterLength] = readVarint(bytes, index);
+          index = afterLength;
+          const end = index + length;
+          while (index < end) {
+            const [value, afterValue] = readVarint(bytes, index);
+            index = afterValue;
+            cards.push(value);
+          }
+          continue;
+        }
         if (wireType !== 0) break;
         const [value, afterValue] = readVarint(bytes, index);
         index = afterValue;
@@ -187,6 +212,55 @@
       const win = readField(bytes, 1) !== 0;
       const change = readField(bytes, 2) || 0;
       gameState.textContent = `对局结束：${win ? '胜利' : '失败'}，金币变化：${change}`;
+    }
+
+    function showRoomState(bytes) {
+      const names = [];
+      let index = 6;
+      while (index < bytes.length) {
+        const [tag, afterTag] = readVarint(bytes, index);
+        index = afterTag;
+        const field = tag >> 3;
+        const wireType = tag & 7;
+        if (field === 6 && wireType === 2) {
+          const [length, afterLength] = readVarint(bytes, index);
+          index = afterLength;
+          const end = index + length;
+          let seat = null;
+          let name = '';
+          let online = true;
+          while (index < end) {
+            const [nestedTag, afterNestedTag] = readVarint(bytes, index);
+            index = afterNestedTag;
+            const nestedField = nestedTag >> 3;
+            const [nestedLengthOrValue, afterValue] = readVarint(bytes, index);
+            index = afterValue;
+            if (nestedField === 1) seat = nestedLengthOrValue;
+            if (nestedField === 3) online = nestedLengthOrValue !== 0;
+            if (nestedField === 2) {
+              const textEnd = index + nestedLengthOrValue;
+              name = new TextDecoder().decode(bytes.slice(index, textEnd));
+              index = textEnd;
+            }
+          }
+          names.push(`${seat}: ${name}${online ? '' : '（离线）'}`);
+          continue;
+        }
+        if (wireType === 2) {
+          const [length, afterLength] = readVarint(bytes, index);
+          index = afterLength + length;
+        } else if (wireType === 0) {
+          index = readVarint(bytes, index)[1];
+        } else {
+          break;
+        }
+      }
+      players.textContent = names.join(' | ');
+      const statePhase = readField(bytes, 3);
+      const stateCurrentSeat = readField(bytes, 4);
+      if (statePhase !== null) phase = statePhase;
+      if (stateCurrentSeat !== null) currentSeat = stateCurrentSeat;
+      updateControls();
     }
 
     function renderHand() {
@@ -234,10 +308,13 @@
           15: 'S2C_RECONNECT_SYNC',
           16: 'S2C_SETTLE_RESULT',
           17: 'S2C_PLAY_BROADCAST',
-          18: 'S2C_TIMEOUT_ACTION'
+          18: 'S2C_TIMEOUT_ACTION',
+          19: 'S2C_ROOM_STATE'
         };
         if (messageId === 13) showDeal(bytes);
         if (messageId === 15) showDeal(bytes, 6);
+        if (messageId === 19) showDeal(bytes, 7);
+        if (messageId === 19) showRoomState(bytes);
         if (messageId === 17) applyPlayBroadcast(bytes);
         if (messageId === 8) applyCallLandlord(bytes);
         if (messageId === 16) applySettlement(bytes);

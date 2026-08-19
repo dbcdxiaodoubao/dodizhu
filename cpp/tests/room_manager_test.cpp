@@ -56,4 +56,9 @@ int main() {
     idle_rooms.cleanup_idle(std::chrono::steady_clock::now() + std::chrono::seconds(61));
     const auto next_match = idle_rooms.match("next-player");
     assert(next_match.room_id == idle_match.room_id + 1);
+
+    const auto state = timeout_rooms.room_state("timeout-a");
+    assert(state.has_value());
+    assert(state->players[0].player_id == "timeout-a");
+    assert(state->own_hand.size() == 17);
 }

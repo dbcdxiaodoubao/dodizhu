@@ -70,6 +70,20 @@ struct TimeoutAction {
     std::uint8_t current_seat;
 };
 
+struct RoomState {
+    struct PlayerInfo {
+        std::string player_id;
+        bool online;
+    };
+    std::uint64_t room_id;
+    std::uint8_t self_seat;
+    game::GamePhase phase;
+    std::uint8_t current_seat;
+    std::optional<std::uint8_t> landlord_seat;
+    std::array<PlayerInfo, 3> players;
+    std::vector<game::Card> own_hand;
+};
+
 class RoomManager final {
 public:
     MatchResult match(const std::string& player_id);
@@ -78,6 +92,7 @@ public:
         const std::string& player_id, const std::vector<game::Card>& cards);
     std::optional<PlayCardsResult> pass(const std::string& player_id);
     std::optional<ReconnectInfo> reconnect_info(const std::string& player_id) const;
+    std::optional<RoomState> room_state(const std::string& player_id) const;
     void mark_online(const std::string& player_id);
     void mark_offline(const std::string& player_id, std::chrono::steady_clock::time_point now);
     std::vector<TimeoutAction> timeout_expired(std::chrono::steady_clock::time_point now);
