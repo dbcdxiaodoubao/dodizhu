@@ -19,6 +19,7 @@ void GameRound::start(std::mt19937& random) {
     play_started_at_.reset();
     last_play_.reset();
     last_play_seat_.reset();
+    last_play_cards_.clear();
     pass_count_ = 0;
 }
 
@@ -110,6 +111,7 @@ bool GameRound::play_cards(std::uint8_t seat, const std::vector<Card>& cards) {
     player_hand = std::move(remaining_hand);
     last_play_ = play;
     last_play_seat_ = seat;
+    last_play_cards_ = cards;
     pass_count_ = 0;
 
     if (player_hand.empty()) {
@@ -133,6 +135,7 @@ bool GameRound::pass(std::uint8_t seat) {
         current_seat_ = *last_play_seat_;
         last_play_.reset();
         last_play_seat_.reset();
+        last_play_cards_.clear();
         pass_count_ = 0;
         return true;
     }
@@ -166,6 +169,18 @@ long long GameRound::duration_seconds(std::chrono::steady_clock::time_point now)
 
 const std::vector<Card>& GameRound::hand(std::uint8_t seat) const {
     return deal_.hands.at(seat);
+}
+
+const std::array<Card, 3>& GameRound::bottom_cards() const {
+    return deal_.bottom_cards;
+}
+
+std::optional<std::uint8_t> GameRound::last_play_seat() const {
+    return last_play_seat_;
+}
+
+const std::vector<Card>& GameRound::last_play_cards() const {
+    return last_play_cards_;
 }
 
 }  // namespace game

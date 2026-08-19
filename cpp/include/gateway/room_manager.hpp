@@ -74,6 +74,7 @@ struct RoomState {
     struct PlayerInfo {
         std::string player_id;
         bool online;
+        std::uint32_t remaining_cards;
     };
     std::uint64_t room_id;
     std::uint8_t self_seat;
@@ -82,6 +83,9 @@ struct RoomState {
     std::optional<std::uint8_t> landlord_seat;
     std::array<PlayerInfo, 3> players;
     std::vector<game::Card> own_hand;
+    std::vector<game::Card> bottom_cards;
+    std::optional<std::uint8_t> last_play_seat;
+    std::vector<game::Card> last_play_cards;
 };
 
 class RoomManager final {

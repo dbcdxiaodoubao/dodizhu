@@ -1,6 +1,9 @@
 spring:
   application:
     name: doudizhu-backend
+  web:
+    resources:
+      static-locations: file:../web/
   datasource:
     url: jdbc:mysql://localhost:3307/doudizhu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     username: game

@@ -22,9 +22,19 @@ inline std::string encode_room_state(const RoomState& state) {
         player->set_seat(seat);
         player->set_player_id(state.players[seat].player_id);
         player->set_online(state.players[seat].online);
+        player->set_remaining_cards(state.players[seat].remaining_cards);
     }
     for (const auto& card : state.own_hand) {
         message.add_own_cards(game::CardCodec::encode(card));
+    }
+    for (const auto& card : state.bottom_cards) {
+        message.add_bottom_cards(game::CardCodec::encode(card));
+    }
+    if (state.last_play_seat) {
+        message.set_last_play_seat(*state.last_play_seat);
+    }
+    for (const auto& card : state.last_play_cards) {
+        message.add_last_play_cards(game::CardCodec::encode(card));
     }
     return message.SerializeAsString();
 }

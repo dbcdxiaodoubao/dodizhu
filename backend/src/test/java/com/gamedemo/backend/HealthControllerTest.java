@@ -28,6 +28,13 @@ class HealthControllerTest {
     }
 
     @Test
+    void servesBrowserClient() throws Exception {
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("WebSocket")));
+    }
+
+    @Test
     @Transactional
     void createsPlayerOnFirstLogin() throws Exception {
         mockMvc.perform(post("/api/auth/login")

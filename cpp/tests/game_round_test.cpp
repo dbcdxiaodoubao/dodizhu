@@ -26,9 +26,13 @@ int main() {
     const auto first_card = round.hand(0).front();
     assert(round.play_cards(0, {first_card}));
     assert(round.current_seat() == 1);
+    assert(round.last_play_seat() == 0);
+    assert(round.last_play_cards().size() == 1);
     assert(round.pass(1));
     assert(round.pass(2));
     assert(round.current_seat() == 0);
+    assert(!round.last_play_seat().has_value());
+    assert(round.last_play_cards().empty());
 
     assert(round.timeout(random));
     assert(round.hand(0).size() == 18);

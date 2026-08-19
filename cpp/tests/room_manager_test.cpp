@@ -61,4 +61,5 @@ int main() {
     assert(state.has_value());
     assert(state->players[0].player_id == "timeout-a");
     assert(state->own_hand.size() == 17);
+    assert(state->players[0].remaining_cards == 17);
 }

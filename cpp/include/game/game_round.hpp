@@ -36,6 +36,9 @@ public:
     std::optional<std::uint8_t> winner_seat() const;
     long long duration_seconds(std::chrono::steady_clock::time_point now) const;
     const std::vector<Card>& hand(std::uint8_t seat) const;
+    const std::array<Card, 3>& bottom_cards() const;
+    std::optional<std::uint8_t> last_play_seat() const;
+    const std::vector<Card>& last_play_cards() const;
 
 private:
     Deck deck_;
@@ -50,6 +53,7 @@ private:
     std::optional<std::chrono::steady_clock::time_point> play_started_at_;
     std::optional<Play> last_play_;
     std::optional<std::uint8_t> last_play_seat_;
+    std::vector<Card> last_play_cards_;
     std::uint8_t pass_count_ = 0;
 };
 

@@ -212,6 +212,7 @@ std::optional<RoomState> RoomManager::room_state(const std::string& player_id) c
         players[seat] = RoomState::PlayerInfo{
             room->second.player_ids[seat],
             offline_since_.find(room->second.player_ids[seat]) == offline_since_.end(),
+            static_cast<std::uint32_t>(room->second.round->hand(seat).size()),
         };
     }
     return RoomState{
@@ -222,6 +223,11 @@ std::optional<RoomState> RoomManager::room_state(const std::string& player_id) c
         room->second.round->landlord_seat(),
         players,
         room->second.round->hand(self_seat),
+        room->second.round->phase() == game::GamePhase::PlayCards
+            ? std::vector<game::Card>(room->second.round->bottom_cards().begin(), room->second.round->bottom_cards().end())
+            : std::vector<game::Card>{},
+        room->second.round->last_play_seat(),
+        room->second.round->last_play_cards(),
     };
 }
 

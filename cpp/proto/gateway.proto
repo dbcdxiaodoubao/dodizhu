@@ -124,6 +124,7 @@ message RoomPlayer {
   uint32 seat = 1;
   string player_id = 2;
   bool online = 3;
+  uint32 remaining_cards = 4;
 }
 
 message S2CRoomState {
@@ -134,4 +135,7 @@ message S2CRoomState {
   uint32 landlord_seat = 5;
   repeated RoomPlayer players = 6;
   repeated uint32 own_cards = 7;
+  repeated uint32 bottom_cards = 8;
+  uint32 last_play_seat = 9;
+  repeated uint32 last_play_cards = 10;
 }

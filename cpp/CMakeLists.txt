@@ -105,6 +105,10 @@ add_executable(player_notifier_test tests/player_notifier_test.cpp)
 target_include_directories(player_notifier_test PRIVATE include)
 add_test(NAME player_notifier_test COMMAND player_notifier_test)
 
+add_executable(protocol_test tests/protocol_test.cpp)
+target_link_libraries(protocol_test PRIVATE protocol packet_codec)
+add_test(NAME protocol_test COMMAND protocol_test)
+
 add_executable(game_round_test tests/game_round_test.cpp)
 target_link_libraries(game_round_test PRIVATE game_round)
 add_test(NAME game_round_test COMMAND game_round_test)

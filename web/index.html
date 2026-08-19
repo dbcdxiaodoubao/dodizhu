@@ -38,6 +38,8 @@
       <button id="reconnect">重连同步</button>
     </div>
     <p>手牌：</p><div id="hand">等待发牌</div>
+    <p>底牌：<span id="bottom-cards">等待地主确定</span></p>
+    <p>上一手：<span id="last-play">暂无</span></p>
     <div id="seats" class="seats">
       <div class="seat">座位 0：等待</div>
       <div class="seat">座位 1：等待</div>
@@ -52,6 +54,8 @@
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
     const hand = document.querySelector('#hand');
+    const bottomCards = document.querySelector('#bottom-cards');
+    const lastPlay = document.querySelector('#last-play');
     const seats = document.querySelector('#seats');
     let socket;
     let heartbeatTimer;
@@ -126,6 +130,39 @@
       const suit = ['♣', '♦', '♥', '♠'][encoded % 4];
       const names = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A', 15: '2', 16: '小王', 17: '大王' };
       return rank >= 16 ? names[rank] : `${suit}${names[rank] || rank}`;
+    }
+
+    function cardsForField(bytes, wantedField) {
+      const cards = [];
+      let index = 6;
+      while (index < bytes.length) {
+        const [tag, afterTag] = readVarint(bytes, index);
+        index = afterTag;
+        const field = tag >> 3;
+        const wireType = tag & 7;
+        if (field === wantedField && wireType === 2) {
+          const [length, afterLength] = readVarint(bytes, index);
+          index = afterLength;
+          const end = index + length;
+          while (index < end) {
+            const [value, afterValue] = readVarint(bytes, index);
+            index = afterValue;
+            cards.push(value);
+          }
+          continue;
+        }
+        if (wireType === 0) {
+          const [value, afterValue] = readVarint(bytes, index);
+          index = afterValue;
+          if (field === wantedField) cards.push(value);
+        } else if (wireType === 2) {
+          const [length, afterLength] = readVarint(bytes, index);
+          index = afterLength + length;
+        } else {
+          break;
+        }
+      }
+      return cards;
     }
 
     function showDeal(bytes, cardField = 1) {
@@ -295,6 +332,12 @@
       const stateCurrentSeat = readField(bytes, 4);
       if (statePhase !== null) phase = statePhase;
       if (stateCurrentSeat !== null) currentSeat = stateCurrentSeat;
+      const bottom = cardsForField(bytes, 8);
+      const lastCards = cardsForField(bytes, 10);
+      bottomCards.textContent = bottom.length ? bottom.map(cardName).join(' ') : '等待地主确定';
+      lastPlay.textContent = lastCards.length
+        ? `座位 ${readField(bytes, 9)}：${lastCards.map(cardName).join(' ')}`
+        : '暂无';
       updateControls();
     }
 
