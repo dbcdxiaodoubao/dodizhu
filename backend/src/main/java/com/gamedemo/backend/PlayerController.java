@@ -10,9 +10,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/players")
 public class PlayerController {
     private final OnlinePlayerService onlinePlayerService;
+    private final PlayerRepository playerRepository;
 
-    public PlayerController(OnlinePlayerService onlinePlayerService) {
+    public PlayerController(OnlinePlayerService onlinePlayerService, PlayerRepository playerRepository) {
         this.onlinePlayerService = onlinePlayerService;
+        this.playerRepository = playerRepository;
     }
 
     @GetMapping("/{playerId}/online")
@@ -25,6 +27,16 @@ public class PlayerController {
         onlinePlayerService.markOffline(playerId);
     }
 
+    @GetMapping("/{playerId}")
+    public ProfileResponse profile(@PathVariable String playerId) {
+        Player player = playerRepository.findById(playerId)
+                .orElseThrow(() -> new IllegalArgumentException("player not found"));
+        return new ProfileResponse(player.getId(), player.getCoins(), onlinePlayerService.isOnline(playerId));
+    }
+
     public record OnlineResponse(String playerId, boolean online) {
+    }
+
+    public record ProfileResponse(String playerId, int coins, boolean online) {
     }
 }

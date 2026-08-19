@@ -95,4 +95,17 @@ class HealthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
+
+    @Test
+    void returnsPlayerProfile() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"profile-player\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/players/profile-player"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.playerId").value("profile-player"))
+                .andExpect(jsonPath("$.coins").value(1000));
+    }
 }

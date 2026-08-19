@@ -23,6 +23,7 @@
   <main>
     <h1>斗地主联机演示</h1>
     <p id="status">未连接</p>
+    <p id="profile">金币：--</p>
     <p id="game-state">阶段：等待连接</p>
     <input id="player-id" value="web-player" placeholder="玩家 ID">
     <div>
@@ -46,6 +47,7 @@
   </main>
   <script>
     const status = document.querySelector('#status');
+    const profile = document.querySelector('#profile');
     const gameState = document.querySelector('#game-state');
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
@@ -92,6 +94,19 @@
         return;
       }
       socket.send(frame(messageId, body));
+    }
+
+    async function loadProfile() {
+      const id = playerId.value.trim();
+      if (!id) return;
+      try {
+        const response = await fetch(`http://127.0.0.1:8080/api/players/${encodeURIComponent(id)}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        profile.textContent = `金币：${data.coins}`;
+      } catch (_) {
+        profile.textContent = '金币：后台未连接';
+      }
     }
 
     function readVarint(bytes, index) {
@@ -359,6 +374,7 @@
           updateControls();
           gameState.textContent = `座位 ${readField(bytes, 1)} 操作超时，当前座位：${currentSeat}`;
         }
+        if (messageId === 2) loadProfile();
         write(`收到 ${names[messageId] || messageId}: ${[...bytes].join(',')}`);
       };
     }
