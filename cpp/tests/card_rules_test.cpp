@@ -24,6 +24,14 @@ int main() {
         Card{Rank::Five, 0}, Card{Rank::Five, 1},
         Card{Rank::Six, 0}, Card{Rank::Six, 1}
     }).pattern == CardPattern::AirplaneWithPairs);
+    assert(game::CardRules::analyze({
+        Card{Rank::Seven, 0}, Card{Rank::Seven, 1}, Card{Rank::Seven, 2}, Card{Rank::Seven, 3},
+        Card{Rank::Three, 0}, Card{Rank::Four, 0}
+    }).pattern == CardPattern::FourWithTwoSingles);
+    assert(game::CardRules::analyze({
+        Card{Rank::Eight, 0}, Card{Rank::Eight, 1}, Card{Rank::Eight, 2}, Card{Rank::Eight, 3},
+        Card{Rank::Three, 0}, Card{Rank::Three, 1}, Card{Rank::Four, 0}, Card{Rank::Four, 1}
+    }).pattern == CardPattern::FourWithTwoPairs);
     assert(game::CardRules::analyze({Card{Rank::Eight, 0}, Card{Rank::Eight, 1}, Card{Rank::Eight, 2}, Card{Rank::Eight, 3}}).pattern == CardPattern::Bomb);
     assert(game::CardRules::analyze({Card{Rank::SmallJoker, 0}, Card{Rank::BigJoker, 0}}).pattern == CardPattern::Rocket);
 }

@@ -94,6 +94,21 @@ Play CardRules::analyze(const std::vector<Card>& cards) {
         }
     }
 
+    const auto four = std::find_if(counts.begin(), counts.end(),
+        [](const auto& entry) { return entry.second == 4; });
+    if (cards.size() == 6 && four != counts.end()) {
+        return {CardPattern::FourWithTwoSingles, static_cast<Rank>(four->first), cards.size()};
+    }
+    if (cards.size() == 8 && four != counts.end()) {
+        auto remaining = counts;
+        remaining.erase(four->first);
+        if (remaining.size() == 2 &&
+            std::all_of(remaining.begin(), remaining.end(),
+                [](const auto& entry) { return entry.second == 2; })) {
+            return {CardPattern::FourWithTwoPairs, static_cast<Rank>(four->first), cards.size()};
+        }
+    }
+
     if (cards.size() >= 5 && counts.size() == cards.size() && consecutive(counts)) {
         return {CardPattern::Straight, highest_rank, cards.size()};
     }

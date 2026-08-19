@@ -24,6 +24,7 @@
     <h1>斗地主联机演示</h1>
     <p id="status">未连接</p>
     <p id="profile">金币：--</p>
+    <p id="history">最近对局：--</p>
     <p id="game-state">阶段：等待连接</p>
     <input id="player-id" value="web-player" placeholder="玩家 ID">
     <div>
@@ -50,6 +51,7 @@
   <script>
     const status = document.querySelector('#status');
     const profile = document.querySelector('#profile');
+    const history = document.querySelector('#history');
     const gameState = document.querySelector('#game-state');
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
@@ -108,6 +110,13 @@
         if (!response.ok) return;
         const data = await response.json();
         profile.textContent = `金币：${data.coins}`;
+        const historyResponse = await fetch(`/api/games/${encodeURIComponent(id)}/history`);
+        if (historyResponse.ok) {
+          const games = await historyResponse.json();
+          history.textContent = games.length
+            ? `最近对局：${games.map(game => `${game.result} ${game.coinChange >= 0 ? '+' : ''}${game.coinChange}`).join(' | ')}`
+            : '最近对局：暂无';
+        }
       } catch (_) {
         profile.textContent = '金币：后台未连接';
       }
@@ -196,7 +205,7 @@
       if (dealtCurrentSeat !== null) currentSeat = dealtCurrentSeat;
       if (cardField === 1) phase = 1;
       if (cardField === 7) phase = readField(bytes, 3) || phase;
-      handCodes = cards;
+      handCodes = cards.sort((left, right) => right - left);
       selectedCards.clear();
       renderHand();
       if (cardField === 1) gameState.textContent = `阶段：叫地主，当前座位：${currentSeat}`;
@@ -292,6 +301,7 @@
           let seat = null;
           let name = '';
           let online = true;
+          let remaining = 0;
           while (index < end) {
             const [nestedTag, afterNestedTag] = readVarint(bytes, index);
             index = afterNestedTag;
@@ -300,13 +310,14 @@
             index = afterValue;
             if (nestedField === 1) seat = nestedLengthOrValue;
             if (nestedField === 3) online = nestedLengthOrValue !== 0;
+            if (nestedField === 4) remaining = nestedLengthOrValue;
             if (nestedField === 2) {
               const textEnd = index + nestedLengthOrValue;
               name = new TextDecoder().decode(bytes.slice(index, textEnd));
               index = textEnd;
             }
           }
-          names.push(`${seat}: ${name}${online ? '' : '（离线）'}`);
+          names.push(`${seat}: ${name}（${remaining} 张）${online ? '' : '（离线）'}`);
           continue;
         }
         if (wireType === 2) {
