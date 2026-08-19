@@ -5,6 +5,7 @@
 namespace gateway {
 
 MatchResult RoomManager::match(const std::string& player_id) {
+    std::lock_guard lock(mutex_);
     const auto now = std::chrono::steady_clock::now();
     for (const auto& [room_id, room] : rooms_) {
         const auto player = std::find(room.player_ids.begin(), room.player_ids.end(), player_id);
@@ -56,6 +57,7 @@ MatchResult RoomManager::match(const std::string& player_id) {
 
 std::optional<CallLandlordResult> RoomManager::call_landlord(
     const std::string& player_id, bool call) {
+    std::lock_guard lock(mutex_);
     const auto player_room = player_rooms_.find(player_id);
     if (player_room == player_rooms_.end()) {
         return std::nullopt;
@@ -87,6 +89,7 @@ std::optional<CallLandlordResult> RoomManager::call_landlord(
 
 std::optional<PlayCardsResult> RoomManager::play_cards(
     const std::string& player_id, const std::vector<game::Card>& cards) {
+    std::lock_guard lock(mutex_);
     const auto player_room = player_rooms_.find(player_id);
     if (player_room == player_rooms_.end()) {
         return std::nullopt;
@@ -146,6 +149,7 @@ std::optional<PlayCardsResult> RoomManager::play_cards(
 }
 
 std::optional<PlayCardsResult> RoomManager::pass(const std::string& player_id) {
+    std::lock_guard lock(mutex_);
     const auto player_room = player_rooms_.find(player_id);
     if (player_room == player_rooms_.end()) {
         return std::nullopt;
@@ -175,6 +179,7 @@ std::optional<PlayCardsResult> RoomManager::pass(const std::string& player_id) {
 }
 
 std::optional<ReconnectInfo> RoomManager::reconnect_info(const std::string& player_id) const {
+    std::lock_guard lock(mutex_);
     const auto player_room = player_rooms_.find(player_id);
     if (player_room == player_rooms_.end()) {
         return std::nullopt;
@@ -202,6 +207,7 @@ std::optional<ReconnectInfo> RoomManager::reconnect_info(const std::string& play
 }
 
 std::optional<RoomState> RoomManager::room_state(const std::string& player_id) const {
+    std::lock_guard lock(mutex_);
     const auto player_room = player_rooms_.find(player_id);
     if (player_room == player_rooms_.end()) {
         return std::nullopt;
@@ -240,17 +246,20 @@ std::optional<RoomState> RoomManager::room_state(const std::string& player_id) c
 }
 
 void RoomManager::mark_online(const std::string& player_id) {
+    std::lock_guard lock(mutex_);
     offline_since_.erase(player_id);
 }
 
 void RoomManager::mark_offline(const std::string& player_id,
                                std::chrono::steady_clock::time_point now) {
+    std::lock_guard lock(mutex_);
     if (player_rooms_.find(player_id) != player_rooms_.end()) {
         offline_since_.emplace(player_id, now);
     }
 }
 
 std::vector<TimeoutAction> RoomManager::timeout_expired(std::chrono::steady_clock::time_point now) {
+    std::lock_guard lock(mutex_);
     std::vector<TimeoutAction> actions;
     for (auto room = rooms_.begin(); room != rooms_.end();) {
         if (!room->second.round || room->second.action_deadline > now) {
@@ -306,6 +315,7 @@ std::vector<TimeoutAction> RoomManager::timeout_expired(std::chrono::steady_cloc
 }
 
 void RoomManager::cleanup_idle(std::chrono::steady_clock::time_point now) {
+    std::lock_guard lock(mutex_);
     for (auto room = rooms_.begin(); room != rooms_.end();) {
         if (room->second.round || now - room->second.last_activity < std::chrono::seconds(60)) {
             ++room;
@@ -324,6 +334,7 @@ void RoomManager::cleanup_idle(std::chrono::steady_clock::time_point now) {
 }
 
 std::vector<ExpiredRoom> RoomManager::cleanup_expired(std::chrono::steady_clock::time_point now) {
+    std::lock_guard lock(mutex_);
     std::vector<std::string> expired_players;
     for (const auto& [player_id, offline_since] : offline_since_) {
         if (now - offline_since >= std::chrono::minutes(5)) {

@@ -5,13 +5,13 @@ spring:
     resources:
       static-locations: file:../web/
   datasource:
-    url: jdbc:mysql://localhost:3307/doudizhu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: game
-    password: game_dev_password
+    url: ${DB_URL:jdbc:mysql://localhost:3307/doudizhu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:game}
+    password: ${DB_PASSWORD:game_dev_password}
   data:
     redis:
-      host: localhost
-      port: 6380
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
       repositories:
         enabled: false
   jpa:
@@ -25,7 +25,7 @@ spring:
     baseline-version: 1
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 logging:
   file:

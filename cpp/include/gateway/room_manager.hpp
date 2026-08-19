@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -119,6 +120,7 @@ private:
     std::unordered_map<std::string, std::uint64_t> player_rooms_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> offline_since_;
     std::mt19937 random_{std::random_device{}()};
+    mutable std::mutex mutex_;
 
     void refresh_deadline(Room& room, std::chrono::steady_clock::time_point now);
 };

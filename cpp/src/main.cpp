@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <iostream>
+#include <cstdlib>
 
 #include <boost/asio.hpp>
 
@@ -10,7 +11,11 @@ int main() {
     try {
         boost::asio::io_context io_context;
         auto room_manager = std::make_shared<gateway::RoomManager>();
-        auto backend_client = std::make_shared<gateway::BackendClient>();
+        const auto backend_host = std::getenv("BACKEND_HOST");
+        const auto backend_port = std::getenv("BACKEND_PORT");
+        auto backend_client = std::make_shared<gateway::BackendClient>(
+            backend_host ? backend_host : "127.0.0.1",
+            backend_port ? backend_port : "8080");
         auto notifier = std::make_shared<gateway::PlayerNotifier>();
         boost::asio::thread_pool backend_pool(2);
         gateway::TcpServer tcp_server(io_context, 9000, room_manager, backend_client, notifier, backend_pool);
