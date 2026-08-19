@@ -386,10 +386,21 @@ void TcpSession::write_next() {
 }
 
 void TcpSession::close() {
+    if (closed_) {
+        return;
+    }
+    closed_ = true;
     boost::system::error_code ignored;
     heartbeat_timer_.cancel();
     if (!player_id_.empty()) {
         room_manager_->mark_offline(player_id_, std::chrono::steady_clock::now());
+        const auto state = room_manager_->room_state(player_id_);
+        if (state) {
+            const auto snapshot = encode_room_state(*state);
+            for (const auto& player : state->players) {
+                notifier_->send(player.player_id, doudizhu::S2C_ROOM_STATE, snapshot);
+            }
+        }
         auto backend_client = backend_client_;
         const auto player_id = player_id_;
         boost::asio::post(backend_pool_, [backend_client, player_id] {

@@ -375,9 +375,20 @@ private:
     }
 
     void close() {
+        if (closed_) {
+            return;
+        }
+        closed_ = true;
         heartbeat_timer_.cancel();
         if (!player_id_.empty()) {
             room_manager_->mark_offline(player_id_, std::chrono::steady_clock::now());
+            const auto state = room_manager_->room_state(player_id_);
+            if (state) {
+                const auto snapshot = encode_room_state(*state);
+                for (const auto& player : state->players) {
+                    notifier_->send(player.player_id, doudizhu::S2C_ROOM_STATE, snapshot);
+                }
+            }
             auto backend_client = backend_client_;
             const auto player_id = player_id_;
             asio::post(backend_pool_, [backend_client, player_id] {
@@ -396,6 +407,7 @@ private:
     std::deque<std::vector<std::uint8_t>> write_queue_;
     bool read_in_progress_ = false;
     std::string player_id_;
+    bool closed_ = false;
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;
     std::shared_ptr<PlayerNotifier> notifier_;
