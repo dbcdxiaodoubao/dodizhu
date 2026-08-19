@@ -1,0 +1,32 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-mingw-debug",
+      "displayName": "Windows MinGW Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "D:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+        "VCPKG_HOST_TRIPLET": "x64-mingw-dynamic"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-mingw-debug-build",
+      "configurePreset": "windows-mingw-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-mingw-debug-test",
+      "configurePreset": "windows-mingw-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -6,7 +6,11 @@
   <title>斗地主联机演示</title>
   <style>
     body { background: #10231b; color: #e7f5e8; font: 16px system-ui, sans-serif; margin: 0; }
-    main { max-width: 720px; margin: 48px auto; padding: 24px; background: #173429; border-radius: 16px; }
+    main { max-width: 820px; margin: 48px auto; padding: 24px; background: #173429; border-radius: 16px; }
+    .seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; }
+    .seat { padding: 14px; background: #214b3a; border: 1px solid #39785b; border-radius: 10px; }
+    .seat.active { border-color: #d9b55a; box-shadow: 0 0 0 2px #d9b55a55; }
+    .seat.offline { opacity: .5; }
     input, button { font: inherit; padding: 10px; border-radius: 8px; border: 0; }
     input { width: 220px; }
     button { background: #d9b55a; color: #1c190c; cursor: pointer; margin: 4px; }
@@ -33,7 +37,11 @@
       <button id="reconnect">重连同步</button>
     </div>
     <p>手牌：</p><div id="hand">等待发牌</div>
-    <p>玩家：<span id="players">等待房间状态</span></p>
+    <div id="seats" class="seats">
+      <div class="seat">座位 0：等待</div>
+      <div class="seat">座位 1：等待</div>
+      <div class="seat">座位 2：等待</div>
+    </div>
     <pre id="log"></pre>
   </main>
   <script>
@@ -42,8 +50,11 @@
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
     const hand = document.querySelector('#hand');
-    const players = document.querySelector('#players');
+    const seats = document.querySelector('#seats');
     let socket;
+    let heartbeatTimer;
+    let reconnectTimer;
+    let shouldReconnect = true;
     let handCodes = [];
     let playerSeat = null;
     let currentSeat = null;
@@ -255,7 +266,16 @@
           break;
         }
       }
-      players.textContent = names.join(' | ');
+      seats.textContent = '';
+      for (let seat = 0; seat < 3; seat++) {
+        const card = document.createElement('div');
+        const player = names[seat] || `座位 ${seat}：等待`;
+        card.className = 'seat';
+        if (seat === currentSeat) card.classList.add('active');
+        if (player.includes('离线')) card.classList.add('offline');
+        card.textContent = player;
+        seats.appendChild(card);
+      }
       const statePhase = readField(bytes, 3);
       const stateCurrentSeat = readField(bytes, 4);
       if (statePhase !== null) phase = statePhase;
@@ -287,11 +307,25 @@
       document.querySelector('#pass').disabled = !myTurn || phase !== 2;
     }
 
-    document.querySelector('#connect').onclick = () => {
+    function connect() {
+      if (socket && socket.readyState === WebSocket.OPEN) return;
       socket = new WebSocket('ws://127.0.0.1:9001');
       socket.binaryType = 'arraybuffer';
-      socket.onopen = () => { status.textContent = '已连接'; write('WebSocket connected'); };
-      socket.onclose = () => { status.textContent = '已断开'; write('WebSocket closed'); };
+      socket.onopen = () => {
+        status.textContent = '已连接';
+        write('WebSocket connected');
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => send(3), 3000);
+      };
+      socket.onclose = () => {
+        status.textContent = '已断开';
+        clearInterval(heartbeatTimer);
+        write('WebSocket closed');
+        if (shouldReconnect) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connect, 2000);
+        }
+      };
       socket.onerror = () => write('WebSocket error');
       socket.onmessage = event => {
         const bytes = new Uint8Array(event.data);
@@ -327,6 +361,11 @@
         }
         write(`收到 ${names[messageId] || messageId}: ${[...bytes].join(',')}`);
       };
+    }
+
+    document.querySelector('#connect').onclick = () => {
+      shouldReconnect = true;
+      connect();
     };
 
     document.querySelector('#login').onclick = () => {
