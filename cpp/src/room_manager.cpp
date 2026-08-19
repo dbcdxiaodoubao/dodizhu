@@ -134,6 +134,14 @@ std::optional<PlayCardsResult> RoomManager::play_cards(
         }
     }
 
+    if (result.game_over && accepted) {
+        for (const auto& room_player : room.player_ids) {
+            player_rooms_.erase(room_player);
+            offline_since_.erase(room_player);
+        }
+        rooms_.erase(room.id);
+    }
+
     return result;
 }
 
@@ -244,21 +252,55 @@ void RoomManager::mark_offline(const std::string& player_id,
 
 std::vector<TimeoutAction> RoomManager::timeout_expired(std::chrono::steady_clock::time_point now) {
     std::vector<TimeoutAction> actions;
-    for (auto& [_, room] : rooms_) {
-        if (!room.round || room.action_deadline > now) {
+    for (auto room = rooms_.begin(); room != rooms_.end();) {
+        if (!room->second.round || room->second.action_deadline > now) {
+            ++room;
             continue;
         }
-        const auto actor_seat = room.round->current_seat();
-        if (room.round->timeout(random_)) {
-            room.last_activity = now;
-            refresh_deadline(room, now);
-            actions.push_back(TimeoutAction{
-                {room.player_ids[0], room.player_ids[1], room.player_ids[2]},
-                actor_seat,
-                room.round->phase(),
-                room.round->current_seat(),
-            });
+        auto& current_room = room->second;
+        const auto actor_seat = current_room.round->current_seat();
+        if (!current_room.round->timeout(random_)) {
+            ++room;
+            continue;
         }
+
+        TimeoutAction action{
+            {current_room.player_ids[0], current_room.player_ids[1], current_room.player_ids[2]},
+            actor_seat,
+            current_room.round->phase(),
+            current_room.round->current_seat(),
+            {},
+        };
+        current_room.last_activity = now;
+
+        if (current_room.round->phase() == game::GamePhase::Settled) {
+            const auto landlord = current_room.round->landlord_seat();
+            const auto winner = current_room.round->winner_seat();
+            if (landlord && winner) {
+                const auto landlord_won = *landlord == *winner;
+                const auto duration = current_room.round->duration_seconds(now);
+                for (std::uint8_t seat = 0; seat < current_room.player_ids.size(); ++seat) {
+                    const auto is_landlord = seat == *landlord;
+                    const auto won = is_landlord == landlord_won;
+                    action.settlements.push_back(PlayCardsResult::SettlementEntry{
+                        std::to_string(current_room.id),
+                        current_room.player_ids[seat],
+                        is_landlord ? (won ? 200 : -200) : (won ? 100 : -100),
+                        won ? "WIN" : "LOSE",
+                        duration,
+                    });
+                }
+            }
+            for (const auto& player_id : current_room.player_ids) {
+                player_rooms_.erase(player_id);
+                offline_since_.erase(player_id);
+            }
+            room = rooms_.erase(room);
+        } else {
+            refresh_deadline(current_room, now);
+            ++room;
+        }
+        actions.push_back(std::move(action));
     }
     return actions;
 }

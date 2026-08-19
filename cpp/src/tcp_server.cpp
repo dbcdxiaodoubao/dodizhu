@@ -459,6 +459,19 @@ void TcpServer::schedule_cleanup() {
                 const auto state = room_manager_->room_state(player);
                 if (state) notifier_->send(player, doudizhu::S2C_ROOM_STATE, encode_room_state(*state));
             }
+            for (const auto& settlement : action.settlements) {
+                doudizhu::S2CSettleResult settle_ret;
+                settle_ret.set_win(settlement.result == "WIN");
+                settle_ret.set_coin_change(settlement.coin_change);
+                notifier_->send(settlement.player_id,
+                                doudizhu::S2C_SETTLE_RESULT,
+                                settle_ret.SerializeAsString());
+                auto backend_client = backend_client_;
+                boost::asio::post(backend_pool_, [backend_client, settlement] {
+                    backend_client->settle(settlement.game_id, settlement.player_id, settlement.coin_change,
+                                           settlement.result, settlement.duration_seconds);
+                });
+            }
         }
         room_manager_->cleanup_idle(now);
         for (const auto& expired_room : room_manager_->cleanup_expired(now)) {

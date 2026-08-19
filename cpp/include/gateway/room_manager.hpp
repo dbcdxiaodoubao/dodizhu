@@ -68,6 +68,7 @@ struct TimeoutAction {
     std::uint8_t actor_seat;
     game::GamePhase phase;
     std::uint8_t current_seat;
+    std::vector<PlayCardsResult::SettlementEntry> settlements;
 };
 
 struct RoomState {

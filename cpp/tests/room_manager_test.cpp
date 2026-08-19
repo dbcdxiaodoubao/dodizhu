@@ -62,4 +62,19 @@ int main() {
     assert(state->players[0].player_id == "timeout-a");
     assert(state->own_hand.size() == 17);
     assert(state->players[0].remaining_cards == 17);
+
+    gateway::RoomManager finished_rooms;
+    finished_rooms.match("finish-a");
+    finished_rooms.match("finish-b");
+    finished_rooms.match("finish-c");
+    finished_rooms.call_landlord("finish-a", true);
+    finished_rooms.call_landlord("finish-b", false);
+    finished_rooms.call_landlord("finish-c", false);
+    auto finished_now = std::chrono::steady_clock::now();
+    for (int step = 0; step < 80; ++step) {
+        finished_now += std::chrono::seconds(20);
+        finished_rooms.timeout_expired(finished_now);
+    }
+    const auto next_game = finished_rooms.match("finish-a");
+    assert(next_game.room_id == 2);
 }
