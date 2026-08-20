@@ -69,3 +69,20 @@ ctest --preset windows-mingw-debug-test
 cd ..\backend
 mvn test
 ```
+
+## Three-Player Smoke Test
+
+After starting infrastructure, backend, and gateway, install the Python WebSocket client once and run:
+
+```powershell
+pip install websockets
+python tools\smoke_test.py
+```
+
+The script opens three WebSocket clients, verifies login, matching, hand delivery, and landlord selection, then exits.
+
+For a one-command local run that starts and stops backend and gateway automatically:
+
+```powershell
+.\run-smoke-test.ps1
+```
