@@ -3,4 +3,5 @@ backend/target/
 cpp/build/
 logs/
 docs/
+__pycache__/
 多人联机斗地主游戏后端项目需求文档.md
