@@ -11,6 +11,8 @@
     .seat { padding: 14px; background: #214b3a; border: 1px solid #39785b; border-radius: 10px; }
     .seat.active { border-color: #d9b55a; box-shadow: 0 0 0 2px #d9b55a55; }
     .seat.offline { opacity: .5; }
+    dialog { width: min(360px, 85vw); border: 0; border-radius: 14px; background: #173429; color: #e7f5e8; padding: 24px; }
+    dialog::backdrop { background: #000a; }
     input, button { font: inherit; padding: 10px; border-radius: 8px; border: 0; }
     input { width: 220px; }
     button { background: #d9b55a; color: #1c190c; cursor: pointer; margin: 4px; }
@@ -49,6 +51,12 @@
       <div class="seat">座位 2：等待</div>
     </div>
     <pre id="log"></pre>
+    <dialog id="settlement-dialog">
+      <h2 id="settlement-title">对局结束</h2>
+      <p id="settlement-detail"></p>
+      <button id="next-game">继续匹配</button>
+      <button id="close-settlement">关闭</button>
+    </dialog>
   </main>
   <script>
     const status = document.querySelector('#status');
@@ -63,6 +71,9 @@
     const bottomCards = document.querySelector('#bottom-cards');
     const lastPlay = document.querySelector('#last-play');
     const seats = document.querySelector('#seats');
+    const settlementDialog = document.querySelector('#settlement-dialog');
+    const settlementTitle = document.querySelector('#settlement-title');
+    const settlementDetail = document.querySelector('#settlement-detail');
     let socket;
     let heartbeatTimer;
     let reconnectTimer;
@@ -312,6 +323,9 @@
       lastPlay.textContent = '暂无';
       renderHand();
       loadProfile();
+      settlementTitle.textContent = win ? '本局胜利' : '本局失败';
+      settlementDetail.textContent = `金币变化：${change >= 0 ? '+' : ''}${change}`;
+      settlementDialog.showModal();
     }
 
     function showRoomState(bytes) {
@@ -497,6 +511,11 @@
     };
     document.querySelector('#pass').onclick = () => send(11);
     document.querySelector('#reconnect').onclick = () => send(14);
+    document.querySelector('#next-game').onclick = () => {
+      settlementDialog.close();
+      send(5);
+    };
+    document.querySelector('#close-settlement').onclick = () => settlementDialog.close();
   </script>
 </body>
 </html>
