@@ -88,3 +88,10 @@ For a one-command local run that starts and stops backend and gateway automatica
 ```powershell
 .\run-smoke-test.ps1
 ```
+
+If the smoke test fails, verify these in order:
+
+1. Docker Desktop is running and `docker compose ps` reports MySQL and Redis as healthy.
+2. `mvn package` has produced `backend/target/backend-0.0.1-SNAPSHOT.jar`.
+3. The CMake gateway build has produced `cpp/build/gateway.exe`.
+4. Python dependencies are installed with `pip install -r tools\requirements.txt`.

@@ -67,6 +67,8 @@
     let heartbeatTimer;
     let reconnectTimer;
     let shouldReconnect = true;
+    let loggedIn = false;
+    let reconnectAfterLogin = false;
     let handCodes = [];
     let playerSeat = null;
     let currentSeat = null;
@@ -105,6 +107,11 @@
         return;
       }
       socket.send(frame(messageId, body));
+    }
+
+    function sendLogin() {
+      const text = new TextEncoder().encode(playerId.value.trim());
+      send(1, [0x0a, ...varint(text.length), ...text]);
     }
 
     async function loadProfile() {
@@ -299,6 +306,8 @@
       selectedCards.clear();
       currentSeat = null;
       phase = 0;
+      actionDeadline = null;
+      countdown.textContent = '倒计时：--';
       bottomCards.textContent = '等待下一局';
       lastPlay.textContent = '暂无';
       renderHand();
@@ -412,11 +421,13 @@
         write('WebSocket connected');
         clearInterval(heartbeatTimer);
         heartbeatTimer = setInterval(() => send(3), 3000);
+        if (reconnectAfterLogin) sendLogin();
       };
       socket.onclose = () => {
         status.textContent = '已断开';
         clearInterval(heartbeatTimer);
         write('WebSocket closed');
+        if (loggedIn) reconnectAfterLogin = true;
         if (shouldReconnect) {
           clearTimeout(reconnectTimer);
           reconnectTimer = setTimeout(connect, 2000);
@@ -455,7 +466,14 @@
           updateControls();
           gameState.textContent = `座位 ${readField(bytes, 1)} 操作超时，当前座位：${currentSeat}`;
         }
-        if (messageId === 2) loadProfile();
+        if (messageId === 2) {
+          loggedIn = true;
+          loadProfile();
+          if (reconnectAfterLogin) {
+            reconnectAfterLogin = false;
+            send(14);
+          }
+        }
         write(`收到 ${names[messageId] || messageId}: ${[...bytes].join(',')}`);
       };
     }
@@ -465,10 +483,7 @@
       connect();
     };
 
-    document.querySelector('#login').onclick = () => {
-      const text = new TextEncoder().encode(playerId.value.trim());
-      send(1, [0x0a, ...varint(text.length), ...text]);
-    };
+    document.querySelector('#login').onclick = () => sendLogin();
     document.querySelector('#heartbeat').onclick = () => send(3);
     document.querySelector('#match').onclick = () => send(5);
     document.querySelector('#call').onclick = () => send(7, [0x08, 0x01]);
