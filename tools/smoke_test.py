@@ -40,14 +40,14 @@ def read_varint(data: bytes, index: int) -> tuple[int, int]:
     raise ValueError("invalid varint")
 
 
-def deal_cards(packet: bytes) -> list[int]:
+def packed_cards(packet: bytes, wanted_field: int) -> list[int]:
     cards: list[int] = []
     index = 6
     while index < len(packet):
         tag, index = read_varint(packet, index)
         field = tag >> 3
         wire_type = tag & 7
-        if field == 1 and wire_type == 2:
+        if field == wanted_field and wire_type == 2:
             length, index = read_varint(packet, index)
             end = index + length
             while index < end:
@@ -55,9 +55,24 @@ def deal_cards(packet: bytes) -> list[int]:
                 cards.append(card)
         elif wire_type == 0:
             _, index = read_varint(packet, index)
+        elif wire_type == 2:
+            length, index = read_varint(packet, index)
+            index += length
         else:
             break
     return cards
+
+
+def write_varint(value: int) -> bytes:
+    result = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            result.append(byte | 0x80)
+        else:
+            result.append(byte)
+            return bytes(result)
 
 
 async def wait_all(clients, message_id: int) -> list[bytes]:
@@ -80,7 +95,7 @@ async def main() -> None:
             await client.send(frame(5))
         await wait_all(clients, 6)
         deals = await wait_all(clients, 13)
-        hands = [deal_cards(deal) for deal in deals]
+        hands = [packed_cards(deal, 1) for deal in deals]
         if any(len(hand) != 17 for hand in hands):
             raise RuntimeError("each player must receive exactly 17 cards")
 
@@ -88,9 +103,24 @@ async def main() -> None:
             await clients[seat].send(frame(7, b"\x08\x01" if call_landlord else b"\x08\x00"))
             await wait_all(clients, 8)
 
-        await first.send(frame(9, b"\x08" + bytes([hands[0][0]])))
-        await wait_all(clients, 17)
-        print("Three-player login, match, deal, call-landlord, and first-play smoke test passed.")
+        room_states = await wait_all(clients, 19)
+        landlord_cards = packed_cards(room_states[0], 7)
+        if len(landlord_cards) != 20:
+            raise RuntimeError(f"landlord must receive 20 cards after call-landlord, got {len(landlord_cards)}")
+
+        while landlord_cards:
+            card = landlord_cards.pop()
+            await first.send(frame(9, b"\x08" + write_varint(card)))
+            await wait_all(clients, 17)
+            if not landlord_cards:
+                break
+            await second.send(frame(11))
+            await wait_all(clients, 17)
+            await third.send(frame(11))
+            await wait_all(clients, 17)
+
+        await wait_all(clients, 16)
+        print("Three-player full-game smoke test passed.")
 
 
 if __name__ == "__main__":
