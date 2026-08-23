@@ -27,6 +27,12 @@ public:
         }
     }
 
+    bool is_current(const std::string& player_id, std::uint64_t token) const {
+        std::lock_guard lock(mutex_);
+        const auto found = senders_.find(player_id);
+        return found != senders_.end() && found->second.token == token;
+    }
+
     void send(const std::string& player_id, std::uint16_t message_id, const std::string& body) const {
         SendFunction sender;
         {

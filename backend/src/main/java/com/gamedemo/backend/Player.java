@@ -29,6 +29,9 @@ public class Player {
     }
 
     public void changeCoins(int amount) {
+        if (coins + amount < 0) {
+            throw new IllegalArgumentException("insufficient coins");
+        }
         coins += amount;
     }
 }

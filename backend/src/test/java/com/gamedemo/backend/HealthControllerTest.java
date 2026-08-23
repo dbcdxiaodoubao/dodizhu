@@ -133,4 +133,18 @@ class HealthControllerTest {
                 .andExpect(jsonPath("$.wins").value(1))
                 .andExpect(jsonPath("$.coinChange").value(100));
     }
+
+    @Test
+    void rejectsSettlementThatWouldMakeCoinsNegative() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"balance-player\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/games/settle")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameId\":\"balance-game\",\"playerId\":\"balance-player\",\"coinChange\":-1001,\"result\":\"LOSE\",\"durationSeconds\":10}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
 }

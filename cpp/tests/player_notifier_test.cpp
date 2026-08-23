@@ -28,4 +28,9 @@ int main() {
     notifier.unregister_player("bob", old_token);
     notifier.send("bob", 15, "still connected");
     assert(new_connection_message == 15);
+
+    const auto stale_token = notifier.register_player("carol", [](std::uint16_t, const std::string&) {});
+    const auto current_token = notifier.register_player("carol", [](std::uint16_t, const std::string&) {});
+    assert(!notifier.is_current("carol", stale_token));
+    assert(notifier.is_current("carol", current_token));
 }

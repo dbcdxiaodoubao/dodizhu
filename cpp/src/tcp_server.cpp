@@ -91,6 +91,12 @@ void TcpSession::handle_packet() {
     const auto* body = packet_.data() + PacketCodec::header_size;
     const auto body_size = packet_.size() - PacketCodec::header_size;
 
+    if (message_id_ != doudizhu::C2S_LOGIN && !player_id_.empty() && notifier_token_ &&
+        !notifier_->is_current(player_id_, *notifier_token_)) {
+        close();
+        return;
+    }
+
     switch (message_id_) {
     case doudizhu::C2S_LOGIN: {
         doudizhu::C2SLogin login;
@@ -403,7 +409,7 @@ void TcpSession::close() {
     closed_ = true;
     boost::system::error_code ignored;
     heartbeat_timer_.cancel();
-    if (!player_id_.empty()) {
+    if (!player_id_.empty() && notifier_token_ && notifier_->is_current(player_id_, *notifier_token_)) {
         room_manager_->mark_offline(player_id_, std::chrono::steady_clock::now());
         const auto state = room_manager_->room_state(player_id_);
         if (state) {
