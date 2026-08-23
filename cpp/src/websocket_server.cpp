@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -115,7 +116,7 @@ private:
                         self->player_id_ = result.player_id;
                         self->room_manager_->mark_online(self->player_id_);
                         const auto weak_session = std::weak_ptr<WebSocketSession>(self);
-                        self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
+                        self->notifier_token_ = self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
                             if (const auto session = weak_session.lock()) {
                                 session->send_packet(message_id, body);
                             }
@@ -394,6 +395,9 @@ private:
             asio::post(backend_pool_, [backend_client, player_id] {
                 backend_client->mark_offline(player_id);
             });
+            if (notifier_token_) {
+                notifier_->unregister_player(player_id_, *notifier_token_);
+            }
         }
         boost::system::error_code ignored;
         stream_.next_layer().shutdown(tcp::socket::shutdown_both, ignored);
@@ -407,6 +411,7 @@ private:
     std::deque<std::vector<std::uint8_t>> write_queue_;
     bool read_in_progress_ = false;
     std::string player_id_;
+    std::optional<std::uint64_t> notifier_token_;
     bool closed_ = false;
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;

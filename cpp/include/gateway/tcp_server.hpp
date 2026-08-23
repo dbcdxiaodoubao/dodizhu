@@ -44,6 +44,7 @@ private:
     bool read_in_progress_ = false;
     std::uint16_t message_id_ = 0;
     std::string player_id_;
+    std::optional<std::uint64_t> notifier_token_;
     bool closed_ = false;
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;

@@ -221,6 +221,10 @@ std::optional<RoomState> RoomManager::room_state(const std::string& player_id) c
         return std::nullopt;
     }
     const auto self_seat = static_cast<std::uint8_t>(std::distance(room->second.player_ids.begin(), player));
+    const auto now = std::chrono::steady_clock::now();
+    const auto remaining = room->second.action_deadline > now
+        ? std::chrono::duration_cast<std::chrono::seconds>(room->second.action_deadline - now).count()
+        : 0;
     std::array<RoomState::PlayerInfo, 3> players{};
     for (std::uint8_t seat = 0; seat < 3; ++seat) {
         players[seat] = RoomState::PlayerInfo{
@@ -242,6 +246,7 @@ std::optional<RoomState> RoomManager::room_state(const std::string& player_id) c
             : std::vector<game::Card>{},
         room->second.round->last_play_seat(),
         room->second.round->last_play_cards(),
+        static_cast<std::uint32_t>(remaining),
     };
 }
 

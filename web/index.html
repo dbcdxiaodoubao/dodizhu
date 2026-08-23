@@ -26,6 +26,7 @@
     <p id="profile">金币：--</p>
     <p id="history">最近对局：--</p>
     <p id="game-state">阶段：等待连接</p>
+    <p id="countdown">倒计时：--</p>
     <input id="player-id" value="web-player" placeholder="玩家 ID">
     <div>
       <button id="connect">连接 WebSocket</button>
@@ -53,6 +54,7 @@
     const profile = document.querySelector('#profile');
     const history = document.querySelector('#history');
     const gameState = document.querySelector('#game-state');
+    const countdown = document.querySelector('#countdown');
     const log = document.querySelector('#log');
     const playerId = document.querySelector('#player-id');
     const hand = document.querySelector('#hand');
@@ -67,6 +69,7 @@
     let playerSeat = null;
     let currentSeat = null;
     let phase = 0;
+    let actionDeadline = null;
     const selectedCards = new Set();
 
     function write(message) {
@@ -343,6 +346,8 @@
       const stateCurrentSeat = readField(bytes, 4);
       if (statePhase !== null) phase = statePhase;
       if (stateCurrentSeat !== null) currentSeat = stateCurrentSeat;
+      const remainingSeconds = readField(bytes, 11);
+      if (remainingSeconds !== null) actionDeadline = Date.now() + remainingSeconds * 1000;
       const bottom = cardsForField(bytes, 8);
       const lastCards = cardsForField(bytes, 10);
       bottomCards.textContent = bottom.length ? bottom.map(cardName).join(' ') : '等待地主确定';
@@ -375,6 +380,12 @@
       document.querySelector('#play').disabled = !myTurn || phase !== 2 || selectedCards.size === 0;
       document.querySelector('#pass').disabled = !myTurn || phase !== 2;
     }
+
+    setInterval(() => {
+      if (actionDeadline === null) return;
+      const seconds = Math.max(0, Math.ceil((actionDeadline - Date.now()) / 1000));
+      countdown.textContent = `倒计时：${seconds} 秒`;
+    }, 250);
 
     function connect() {
       if (socket && socket.readyState === WebSocket.OPEN) return;

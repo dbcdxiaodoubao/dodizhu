@@ -3,6 +3,7 @@
 import asyncio
 import struct
 import sys
+import uuid
 
 import websockets
 
@@ -40,10 +41,11 @@ async def player(player_id: str, call_landlord: bool) -> None:
 
 
 async def main() -> None:
+    suffix = uuid.uuid4().hex[:8]
     await asyncio.gather(
-        player("smoke-a", True),
-        player("smoke-b", False),
-        player("smoke-c", False),
+        player(f"smoke-a-{suffix}", True),
+        player(f"smoke-b-{suffix}", False),
+        player(f"smoke-c-{suffix}", False),
     )
     print("Three-player login, match, deal, and call-landlord smoke test passed.")
 

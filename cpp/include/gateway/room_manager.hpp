@@ -88,6 +88,7 @@ struct RoomState {
     std::vector<game::Card> bottom_cards;
     std::optional<std::uint8_t> last_play_seat;
     std::vector<game::Card> last_play_cards;
+    std::uint32_t action_remaining_seconds;
 };
 
 class RoomManager final {

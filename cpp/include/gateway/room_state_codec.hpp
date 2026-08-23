@@ -36,6 +36,7 @@ inline std::string encode_room_state(const RoomState& state) {
     for (const auto& card : state.last_play_cards) {
         message.add_last_play_cards(game::CardCodec::encode(card));
     }
+    message.set_action_remaining_seconds(state.action_remaining_seconds);
     return message.SerializeAsString();
 }
 

@@ -138,4 +138,5 @@ message S2CRoomState {
   repeated uint32 bottom_cards = 8;
   uint32 last_play_seat = 9;
   repeated uint32 last_play_cards = 10;
+  uint32 action_remaining_seconds = 11;
 }

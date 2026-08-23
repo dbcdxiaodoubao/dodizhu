@@ -12,21 +12,42 @@ class PlayerNotifier final {
 public:
     using SendFunction = std::function<void(std::uint16_t, const std::string&)>;
 
-    void register_player(const std::string& player_id, SendFunction send) {
+    std::uint64_t register_player(const std::string& player_id, SendFunction send) {
         std::lock_guard lock(mutex_);
-        senders_[player_id] = std::move(send);
+        const auto token = next_token_++;
+        senders_[player_id] = Entry{token, std::move(send)};
+        return token;
     }
 
-    void send(const std::string& player_id, std::uint16_t message_id, const std::string& body) const {
+    void unregister_player(const std::string& player_id, std::uint64_t token) {
         std::lock_guard lock(mutex_);
-        const auto sender = senders_.find(player_id);
-        if (sender != senders_.end()) {
-            sender->second(message_id, body);
+        const auto found = senders_.find(player_id);
+        if (found != senders_.end() && found->second.token == token) {
+            senders_.erase(found);
         }
     }
 
+    void send(const std::string& player_id, std::uint16_t message_id, const std::string& body) const {
+        SendFunction sender;
+        {
+            std::lock_guard lock(mutex_);
+            const auto found = senders_.find(player_id);
+            if (found == senders_.end()) {
+                return;
+            }
+            sender = found->second.send;
+        }
+        sender(message_id, body);
+    }
+
 private:
-    std::unordered_map<std::string, SendFunction> senders_;
+    struct Entry {
+        std::uint64_t token;
+        SendFunction send;
+    };
+
+    std::unordered_map<std::string, Entry> senders_;
+    std::uint64_t next_token_ = 1;
     mutable std::mutex mutex_;
 };
 

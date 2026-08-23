@@ -75,7 +75,7 @@ mvn test
 After starting infrastructure, backend, and gateway, install the Python WebSocket client once and run:
 
 ```powershell
-pip install websockets
+pip install -r tools\requirements.txt
 python tools\smoke_test.py
 ```
 

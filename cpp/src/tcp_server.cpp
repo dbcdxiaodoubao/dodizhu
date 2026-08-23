@@ -113,7 +113,7 @@ void TcpSession::handle_packet() {
                     self->player_id_ = backend_login.player_id;
                     self->room_manager_->mark_online(self->player_id_);
                     const auto weak_session = std::weak_ptr<TcpSession>(self);
-                    self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
+                    self->notifier_token_ = self->notifier_->register_player(self->player_id_, [weak_session](std::uint16_t message_id, const std::string& body) {
                         if (const auto session = weak_session.lock()) {
                             session->send_packet(message_id, body);
                         }
@@ -406,6 +406,9 @@ void TcpSession::close() {
         boost::asio::post(backend_pool_, [backend_client, player_id] {
             backend_client->mark_offline(player_id);
         });
+        if (notifier_token_) {
+            notifier_->unregister_player(player_id_, *notifier_token_);
+        }
     }
     socket_.shutdown(tcp::socket::shutdown_both, ignored);
     socket_.close(ignored);
