@@ -81,7 +81,7 @@ pip install -r tools\requirements.txt
 python tools\smoke_test.py
 ```
 
-The script opens three WebSocket clients, verifies login, matching, hand delivery, and landlord selection, then exits.
+The script opens three WebSocket clients, verifies login, matching, 17-card hand delivery, landlord selection, and the landlord's first play broadcast, then exits.
 
 For a one-command local run that starts and stops backend and gateway automatically:
 
