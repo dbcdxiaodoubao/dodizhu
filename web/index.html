@@ -371,6 +371,11 @@
           break;
         }
       }
+      const statePhase = readField(bytes, 3);
+      const stateCurrentSeat = readField(bytes, 4);
+      const landlordSeat = readField(bytes, 5);
+      if (statePhase !== null) phase = statePhase;
+      if (stateCurrentSeat !== null) currentSeat = stateCurrentSeat;
       seats.textContent = '';
       for (let seat = 0; seat < 3; seat++) {
         const card = document.createElement('div');
@@ -378,13 +383,9 @@
         card.className = 'seat';
         if (seat === currentSeat) card.classList.add('active');
         if (player.includes('离线')) card.classList.add('offline');
-        card.textContent = player;
+        card.textContent = `${player}${seat === landlordSeat ? '（地主）' : ''}`;
         seats.appendChild(card);
       }
-      const statePhase = readField(bytes, 3);
-      const stateCurrentSeat = readField(bytes, 4);
-      if (statePhase !== null) phase = statePhase;
-      if (stateCurrentSeat !== null) currentSeat = stateCurrentSeat;
       const remainingSeconds = readField(bytes, 11);
       if (remainingSeconds !== null) actionDeadline = Date.now() + remainingSeconds * 1000;
       const bottom = cardsForField(bytes, 8);
