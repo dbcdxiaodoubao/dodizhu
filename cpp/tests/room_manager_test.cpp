@@ -35,6 +35,12 @@ int main() {
     assert(call_third->game_started);
     assert(call_third->landlord_seat == 0);
 
+    const auto landlord_state = rooms.room_state("player-a");
+    assert(landlord_state.has_value());
+    assert(landlord_state->landlord_seat == 0);
+    assert(landlord_state->own_hand.size() == 20);
+    assert(landlord_state->bottom_cards.size() == 3);
+
     const auto now = std::chrono::steady_clock::time_point{};
     rooms.mark_offline("player-a", now);
     const auto expired = rooms.cleanup_expired(now + std::chrono::minutes(6));
