@@ -27,6 +27,7 @@ namespace websocket = beast::websocket;
 using tcp = asio::ip::tcp;
 
 constexpr std::uint32_t max_packet_size = 64U * 1024U;
+constexpr std::uint32_t max_messages_per_second = 30;
 
 class WebSocketSession final : public std::enable_shared_from_this<WebSocketSession> {
 public:
@@ -94,6 +95,16 @@ private:
         refresh_heartbeat();
         const auto* body = packet_.data() + PacketCodec::header_size;
         const auto body_size = packet_.size() - PacketCodec::header_size;
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now - message_window_started_ >= std::chrono::seconds(1)) {
+            message_window_started_ = now;
+            message_count_ = 0;
+        }
+        if (++message_count_ > max_messages_per_second) {
+            close();
+            return;
+        }
 
         if (header->message_id != doudizhu::C2S_LOGIN && !player_id_.empty() && notifier_token_ &&
             !notifier_->is_current(player_id_, *notifier_token_)) {
@@ -430,6 +441,8 @@ private:
     std::string player_id_;
     std::optional<std::uint64_t> notifier_token_;
     bool closed_ = false;
+    std::chrono::steady_clock::time_point message_window_started_ = std::chrono::steady_clock::now();
+    std::uint32_t message_count_ = 0;
     std::shared_ptr<RoomManager> room_manager_;
     std::shared_ptr<BackendClient> backend_client_;
     std::shared_ptr<PlayerNotifier> notifier_;

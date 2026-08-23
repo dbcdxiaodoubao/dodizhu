@@ -13,6 +13,7 @@ namespace gateway {
 namespace {
 
 constexpr std::uint32_t max_packet_size = 64U * 1024U;
+constexpr std::uint32_t max_messages_per_second = 30;
 
 }  // namespace
 
@@ -87,6 +88,15 @@ void TcpSession::read_body(std::uint32_t packet_size) {
 }
 
 void TcpSession::handle_packet() {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - message_window_started_ >= std::chrono::seconds(1)) {
+        message_window_started_ = now;
+        message_count_ = 0;
+    }
+    if (++message_count_ > max_messages_per_second) {
+        close();
+        return;
+    }
     refresh_heartbeat();
     const auto* body = packet_.data() + PacketCodec::header_size;
     const auto body_size = packet_.size() - PacketCodec::header_size;

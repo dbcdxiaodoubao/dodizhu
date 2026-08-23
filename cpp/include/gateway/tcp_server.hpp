@@ -42,6 +42,8 @@ private:
     std::vector<std::uint8_t> packet_;
     std::deque<std::vector<std::uint8_t>> write_queue_;
     bool read_in_progress_ = false;
+    std::chrono::steady_clock::time_point message_window_started_ = std::chrono::steady_clock::now();
+    std::uint32_t message_count_ = 0;
     std::uint16_t message_id_ = 0;
     std::string player_id_;
     std::optional<std::uint64_t> notifier_token_;
