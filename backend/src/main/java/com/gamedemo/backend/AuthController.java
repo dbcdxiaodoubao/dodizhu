@@ -2,6 +2,7 @@ package com.gamedemo.backend;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,7 +33,10 @@ public class AuthController {
         return response;
     }
 
-    public record LoginRequest(@NotBlank String playerId) {
+    public record LoginRequest(
+            @NotBlank
+            @Pattern(regexp = "[A-Za-z0-9_-]{1,32}")
+            String playerId) {
     }
 
     public record LoginResponse(String playerId, int coins, boolean created) {

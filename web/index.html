@@ -28,7 +28,7 @@
     <p id="history">最近对局：--</p>
     <p id="game-state">阶段：等待连接</p>
     <p id="countdown">倒计时：--</p>
-    <input id="player-id" value="web-player" placeholder="玩家 ID">
+    <input id="player-id" value="web-player" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="玩家 ID（字母、数字、_、-）">
     <div>
       <button id="connect">连接 WebSocket</button>
       <button id="login">登录</button>
