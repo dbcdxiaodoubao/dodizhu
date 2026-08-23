@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$javaHome = 'C:\Program Files\Microsoft\jdk-17.0.8.7-hotspot'
+$javaHome = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'C:\Program Files\Microsoft\jdk-17.0.8.7-hotspot' }
 $backendJar = Join-Path $PSScriptRoot 'backend\target\backend-0.0.1-SNAPSHOT.jar'
 $gateway = Join-Path $PSScriptRoot 'cpp\build\gateway.exe'
 

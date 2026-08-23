@@ -9,7 +9,7 @@ Windows-native multiplayer Dou Dizhu prototype:
 ## Prerequisites
 
 - Docker Desktop running.
-- JDK 17 at `C:\Program Files\Microsoft\jdk-17.0.8.7-hotspot`.
+- JDK 17 configured through `JAVA_HOME`; the local scripts fall back to `C:\Program Files\Microsoft\jdk-17.0.8.7-hotspot`.
 - CLion bundled MinGW and CMake, vcpkg at `D:\vcpkg`.
 
 ## Start Order
