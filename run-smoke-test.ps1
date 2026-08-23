@@ -11,7 +11,17 @@ $backend = Start-Process -FilePath (Join-Path $javaHome 'bin\java.exe') -Argumen
 $gatewayProcess = Start-Process -FilePath $gateway -WorkingDirectory (Join-Path $PSScriptRoot 'cpp\build') -PassThru
 
 try {
-    Start-Sleep -Seconds 8
+    $ready = $false
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri 'http://127.0.0.1:8080/api/health' -UseBasicParsing -TimeoutSec 1 | Out-Null
+            $ready = $true
+            break
+        } catch {
+            Start-Sleep -Seconds 1
+        }
+    }
+    if (-not $ready) { throw 'Backend did not become ready within 30 seconds.' }
     python (Join-Path $PSScriptRoot 'tools\smoke_test.py')
 } finally {
     Stop-Process -Id $backend.Id, $gatewayProcess.Id -Force -ErrorAction SilentlyContinue

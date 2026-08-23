@@ -34,4 +34,13 @@ int main() {
     }).pattern == CardPattern::FourWithTwoPairs);
     assert(game::CardRules::analyze({Card{Rank::Eight, 0}, Card{Rank::Eight, 1}, Card{Rank::Eight, 2}, Card{Rank::Eight, 3}}).pattern == CardPattern::Bomb);
     assert(game::CardRules::analyze({Card{Rank::SmallJoker, 0}, Card{Rank::BigJoker, 0}}).pattern == CardPattern::Rocket);
+
+    const auto pair_four = game::CardRules::analyze({Card{Rank::Four, 0}, Card{Rank::Four, 1}});
+    const auto pair_five = game::CardRules::analyze({Card{Rank::Five, 0}, Card{Rank::Five, 1}});
+    const auto bomb = game::CardRules::analyze({Card{Rank::Six, 0}, Card{Rank::Six, 1}, Card{Rank::Six, 2}, Card{Rank::Six, 3}});
+    const auto rocket = game::CardRules::analyze({Card{Rank::SmallJoker, 0}, Card{Rank::BigJoker, 0}});
+    assert(game::CardRules::can_beat(pair_five, pair_four));
+    assert(!game::CardRules::can_beat(pair_four, pair_five));
+    assert(game::CardRules::can_beat(bomb, pair_five));
+    assert(game::CardRules::can_beat(rocket, bomb));
 }

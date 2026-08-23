@@ -34,6 +34,7 @@ struct Play {
 class CardRules final {
 public:
     static Play analyze(const std::vector<Card>& cards);
+    static bool can_beat(const Play& current, const Play& previous);
 };
 
 }  // namespace game

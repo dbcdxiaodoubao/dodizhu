@@ -24,6 +24,7 @@
     <h1>斗地主联机演示</h1>
     <p id="status">未连接</p>
     <p id="profile">金币：--</p>
+    <p id="stats">战绩：--</p>
     <p id="history">最近对局：--</p>
     <p id="game-state">阶段：等待连接</p>
     <p id="countdown">倒计时：--</p>
@@ -52,6 +53,7 @@
   <script>
     const status = document.querySelector('#status');
     const profile = document.querySelector('#profile');
+    const stats = document.querySelector('#stats');
     const history = document.querySelector('#history');
     const gameState = document.querySelector('#game-state');
     const countdown = document.querySelector('#countdown');
@@ -113,6 +115,12 @@
         if (!response.ok) return;
         const data = await response.json();
         profile.textContent = `金币：${data.coins}`;
+        const statsResponse = await fetch(`/api/players/${encodeURIComponent(id)}/stats`);
+        if (statsResponse.ok) {
+          const value = await statsResponse.json();
+          const rate = value.games ? Math.round(value.wins * 100 / value.games) : 0;
+          stats.textContent = `战绩：${value.games} 局，胜率 ${rate}%，累计 ${value.coinChange >= 0 ? '+' : ''}${value.coinChange}`;
+        }
         const historyResponse = await fetch(`/api/games/${encodeURIComponent(id)}/history`);
         if (historyResponse.ok) {
           const games = await historyResponse.json();
@@ -287,6 +295,14 @@
       const win = readField(bytes, 1) !== 0;
       const change = readField(bytes, 2) || 0;
       gameState.textContent = `对局结束：${win ? '胜利' : '失败'}，金币变化：${change}`;
+      handCodes = [];
+      selectedCards.clear();
+      currentSeat = null;
+      phase = 0;
+      bottomCards.textContent = '等待下一局';
+      lastPlay.textContent = '暂无';
+      renderHand();
+      loadProfile();
     }
 
     function showRoomState(bytes) {
@@ -389,7 +405,7 @@
 
     function connect() {
       if (socket && socket.readyState === WebSocket.OPEN) return;
-      socket = new WebSocket('ws://127.0.0.1:9001');
+      socket = new WebSocket(`ws://${window.location.hostname}:9001`);
       socket.binaryType = 'arraybuffer';
       socket.onopen = () => {
         status.textContent = '已连接';

@@ -115,4 +115,22 @@ class HealthControllerTest {
                 .andExpect(jsonPath("$.playerId").value("profile-player"))
                 .andExpect(jsonPath("$.coins").value(1000));
     }
+
+    @Test
+    void returnsPlayerStats() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"stats-player\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/games/settle")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameId\":\"stats-game-1\",\"playerId\":\"stats-player\",\"coinChange\":100,\"result\":\"WIN\",\"durationSeconds\":10}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/players/stats-player/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.games").value(1))
+                .andExpect(jsonPath("$.wins").value(1))
+                .andExpect(jsonPath("$.coinChange").value(100));
+    }
 }

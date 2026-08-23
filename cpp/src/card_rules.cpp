@@ -166,4 +166,21 @@ Play CardRules::analyze(const std::vector<Card>& cards) {
     return {};
 }
 
+bool CardRules::can_beat(const Play& current, const Play& previous) {
+    if (current.pattern == CardPattern::Invalid || previous.pattern == CardPattern::Invalid) {
+        return false;
+    }
+    if (current.pattern == CardPattern::Rocket) {
+        return previous.pattern != CardPattern::Rocket;
+    }
+    if (current.pattern == CardPattern::Bomb) {
+        return previous.pattern != CardPattern::Rocket &&
+               (previous.pattern != CardPattern::Bomb ||
+                rank_value(current.main_rank) > rank_value(previous.main_rank));
+    }
+    return current.pattern == previous.pattern &&
+           current.card_count == previous.card_count &&
+           rank_value(current.main_rank) > rank_value(previous.main_rank);
+}
+
 }  // namespace game

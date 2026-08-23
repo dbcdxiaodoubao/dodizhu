@@ -40,6 +40,8 @@ cd ..
 
 4. Open `http://localhost:8080/` in three browser windows and use different player IDs.
 
+When opening the page from another device on the LAN, use the host machine's IP in the URL. The browser client automatically connects to WebSocket port `9001` on the same host.
+
 The backend accepts `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, and `SERVER_PORT` environment overrides. The gateway accepts `BACKEND_HOST` and `BACKEND_PORT`.
 
 ## Ports

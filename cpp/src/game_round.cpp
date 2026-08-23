@@ -86,14 +86,7 @@ bool GameRound::play_cards(std::uint8_t seat, const std::vector<Card>& cards) {
     }
 
     if (last_play_) {
-        const auto can_beat =
-            play.pattern == CardPattern::Rocket ||
-            (play.pattern == CardPattern::Bomb && last_play_->pattern != CardPattern::Rocket &&
-             (last_play_->pattern != CardPattern::Bomb ||
-              static_cast<std::uint8_t>(play.main_rank) > static_cast<std::uint8_t>(last_play_->main_rank))) ||
-            (play.pattern == last_play_->pattern && play.card_count == last_play_->card_count &&
-             static_cast<std::uint8_t>(play.main_rank) > static_cast<std::uint8_t>(last_play_->main_rank));
-        if (!can_beat) {
+        if (!CardRules::can_beat(play, *last_play_)) {
             return false;
         }
     }
