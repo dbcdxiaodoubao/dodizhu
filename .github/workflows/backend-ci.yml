@@ -1,0 +1,24 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Start MySQL and Redis
+        run: docker compose up --detach --wait
+      - name: Run backend tests
+        working-directory: backend
+        run: mvn test
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose down --volumes

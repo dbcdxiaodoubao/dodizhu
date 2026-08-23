@@ -121,6 +121,17 @@ private:
                                 session->send_packet(message_id, body);
                             }
                         });
+                        const auto state = self->room_manager_->room_state(self->player_id_);
+                        if (state) {
+                            for (const auto& player : state->players) {
+                                const auto player_state = self->room_manager_->room_state(player.player_id);
+                                if (player_state) {
+                                    self->notifier_->send(player.player_id,
+                                                          doudizhu::S2C_ROOM_STATE,
+                                                          encode_room_state(*player_state));
+                                }
+                            }
+                        }
                     }
                     self->send_packet(doudizhu::S2C_LOGIN_RET, response.SerializeAsString());
                 });
